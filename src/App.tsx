@@ -10,7 +10,9 @@ import NotFound from "./pages/NotFound";
 import Browse from "./pages/Browse";
 import Login from "./pages/Login";
 import Library from "./pages/Library";
-import PodcastUpload from "./components/PodcastUpload";
+import Profile from "./pages/Profile";
+import PodcastUpload from "./pages/PodcastUpload";
+import PodcastDetails from "./pages/PodcastDetails";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -28,7 +30,9 @@ const App = () => {
               <Route path="/discover" element={<Browse />} />
               <Route path="/login" element={<Login />} />
               <Route path="/library" element={<Library />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/upload" element={<PodcastUpload />} />
+              <Route path="/podcast/:id" element={<PodcastDetails />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

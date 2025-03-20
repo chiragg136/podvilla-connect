@@ -26,8 +26,10 @@ export const handlePodcastUpload = async (
     const category = formData.get('category') as string;
     const audioFile = formData.get('audio') as File;
     const coverImage = formData.get('coverImage') as File;
+    const episodeTitle = formData.get('episodeTitle') as string;
+    const episodeDescription = formData.get('episodeDescription') as string || description;
     
-    if (!title || !description || !category || !audioFile || !coverImage) {
+    if (!title || !description || !category || !audioFile || !coverImage || !episodeTitle) {
       throw new Error('Missing required fields for podcast upload');
     }
     
@@ -54,8 +56,8 @@ export const handlePodcastUpload = async (
     const newEpisode = {
       id: `episode-${Date.now()}`,
       podcastId: newPodcast.id,
-      title: `${title} - Episode 1`,
-      description,
+      title: episodeTitle,
+      description: episodeDescription,
       audioUrl: mockAudioUrl,
       duration: 1800, // Mock duration (30 minutes)
       releaseDate: new Date().toISOString(),
