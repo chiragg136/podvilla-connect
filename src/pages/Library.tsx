@@ -293,7 +293,12 @@ const Library = () => {
                   description="Create playlists to organize your favorite episodes."
                   icon={List}
                   actionText="Create Playlist"
-                  onAction={() => toast.success("Create playlist feature coming soon!")}
+                  onAction={() => {
+                    // Fix: Replace toast.success with standard toast call
+                    toast({
+                      title: "Create playlist feature coming soon!",
+                    });
+                  }}
                 />
               )}
             </TabsContent>
