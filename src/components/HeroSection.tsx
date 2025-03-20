@@ -2,13 +2,24 @@
 import { useState, useEffect } from 'react';
 import { Play, MoveRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
-const HeroSection = () => {
+interface HeroSectionProps {
+  onPlay?: (id: string) => void;
+}
+
+const HeroSection = ({ onPlay }: HeroSectionProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  const handlePlay = () => {
+    if (onPlay) {
+      onPlay('featured-podcast');
+    }
+  };
 
   return (
     <section className="relative overflow-hidden pt-24 md:pt-32 pb-16 px-6">
@@ -35,18 +46,22 @@ const HeroSection = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                className="group bg-primary-900 hover:bg-primary-800 text-white rounded-full px-8 py-6 text-base"
-              >
-                Get Started 
-                <MoveRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </Button>
-              <Button 
-                variant="outline" 
-                className="rounded-full border border-primary-300 px-8 py-6 text-base font-medium text-primary-700 hover:bg-primary-50"
-              >
-                Explore Podcasts
-              </Button>
+              <Link to="/discover">
+                <Button 
+                  className="group bg-primary-900 hover:bg-primary-800 text-white rounded-full px-8 py-6 text-base"
+                >
+                  Get Started 
+                  <MoveRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
+              <Link to="/library">
+                <Button 
+                  variant="outline" 
+                  className="rounded-full border border-primary-300 px-8 py-6 text-base font-medium text-primary-700 hover:bg-primary-50"
+                >
+                  Explore Podcasts
+                </Button>
+              </Link>
             </div>
           </div>
 
@@ -69,6 +84,7 @@ const HeroSection = () => {
                       <Button 
                         size="icon" 
                         className="flex items-center justify-center w-12 h-12 rounded-full bg-white text-primary-900 mr-4 hover:scale-105 transition-transform"
+                        onClick={handlePlay}
                       >
                         <Play className="h-5 w-5 ml-0.5" />
                       </Button>

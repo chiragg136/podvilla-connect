@@ -2,7 +2,11 @@
 import { useRef, useEffect, useState } from 'react';
 import PodcastCard from './PodcastCard';
 
-const TrendingSection = () => {
+interface TrendingSectionProps {
+  onPlayPodcast?: (id: string) => void;
+}
+
+const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -10,8 +14,10 @@ const TrendingSection = () => {
   const handlePlay = (id: string) => {
     if (playingId === id) {
       setPlayingId(null);
+      if (onPlayPodcast) onPlayPodcast('');
     } else {
       setPlayingId(id);
+      if (onPlayPodcast) onPlayPodcast(id);
     }
   };
 

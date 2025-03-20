@@ -9,6 +9,7 @@ import AppFooter from '@/components/AppFooter';
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPodcast, setCurrentPodcast] = useState<string | null>(null);
 
   useEffect(() => {
     // Simulate loading time
@@ -18,6 +19,10 @@ const Index = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  const handlePlayPodcast = (podcastId: string) => {
+    setCurrentPodcast(podcastId);
+  };
 
   if (isLoading) {
     return (
@@ -32,13 +37,13 @@ const Index = () => {
       <Header />
       
       <main className="flex-grow">
-        <HeroSection />
+        <HeroSection onPlay={handlePlayPodcast} />
         <FeaturesSection />
-        <TrendingSection />
+        <TrendingSection onPlayPodcast={handlePlayPodcast} />
       </main>
       
       <AppFooter />
-      <Player />
+      <Player podcastId={currentPodcast} />
     </div>
   );
 };
