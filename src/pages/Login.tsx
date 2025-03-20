@@ -1,181 +1,279 @@
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Mail, Github, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import Header from '@/components/Header';
+import AppFooter from '@/components/AppFooter';
+import { authService } from '@/services/authService';
 
 const Login = () => {
-  const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const [activeTab, setActiveTab] = useState<string>('login');
+  
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  
+  // Register form state
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+  
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all fields to continue.",
-        variant: "destructive",
-      });
+    if (!loginEmail || !loginPassword) {
+      toast.error('Please fill in all fields');
       return;
     }
     
     setIsLoading(true);
     
-    // Simulate login
-    setTimeout(() => {
-      toast({
-        title: "Success",
-        description: "You've successfully logged in. Welcome back!",
-      });
+    try {
+      const user = await authService.loginWithEmail(loginEmail, loginPassword);
+      
+      if (user) {
+        toast.success('Login successful! Welcome back.');
+        navigate('/library');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Login failed. Please check your credentials.');
+    } finally {
       setIsLoading(false);
-      // In a real app, you would redirect to dashboard or home after login
-    }, 1500);
+    }
   };
-
-  const handleWalletLogin = () => {
-    toast({
-      title: "Wallet connection",
-      description: "Web3 wallet connection coming soon!",
-    });
+  
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!registerEmail || !registerPassword || !registerConfirmPassword) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    
+    if (registerPassword !== registerConfirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const user = await authService.register(registerEmail, registerPassword);
+      
+      if (user) {
+        toast.success('Registration successful! Welcome to PodVilla.');
+        navigate('/library');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleMetamaskLogin = async () => {
+    setIsLoading(true);
+    
+    try {
+      const user = await authService.loginWithMetamask();
+      
+      if (user) {
+        toast.success('Metamask login successful!');
+        navigate('/library');
+      }
+    } catch (error) {
+      console.error('Metamask login error:', error);
+      toast.error('Metamask login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleDojimaLogin = async () => {
+    setIsLoading(true);
+    
+    try {
+      const user = await authService.loginWithDojimaWallet();
+      
+      if (user) {
+        toast.success('Dojima wallet login successful!');
+        navigate('/library');
+      }
+    } catch (error) {
+      console.error('Dojima login error:', error);
+      toast.error('Dojima wallet login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <div className="flex-1 flex flex-col justify-center py-12 px-6 sm:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Link to="/" className="inline-block mb-6">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <ArrowLeft className="h-4 w-4" /> Back to home
-            </Button>
-          </Link>
-          
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent-purple to-accent-pink mx-auto flex items-center justify-center mb-6">
-            <span className="text-white font-bold text-xs">P</span>
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      
+      <main className="flex-grow pt-24 md:pt-32 px-6">
+        <div className="max-w-lg mx-auto bg-white rounded-2xl shadow-md overflow-hidden border border-gray-200">
+          <div className="px-8 pt-8 pb-6 text-center">
+            <h1 className="text-2xl font-display font-bold text-primary-900">
+              Welcome to PodVilla
+            </h1>
+            <p className="mt-2 text-primary-600">
+              Sign in to access your podcasts and personalized content
+            </p>
           </div>
-          <h2 className="text-center text-3xl font-display font-bold text-primary-900">
-            Sign in to PodVilla
-          </h2>
-          <p className="mt-2 text-center text-sm text-primary-600">
-            Don't have an account?{' '}
-            <Link to="/signup" className="font-medium text-accent-purple hover:text-accent-purple/90">
-              Create one here
-            </Link>
-          </p>
-        </div>
-
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-6 shadow sm:rounded-lg sm:px-10">
-            <form className="space-y-6" onSubmit={handleLogin}>
-              <div>
-                <Label htmlFor="email">Email address</Label>
-                <div className="mt-1 relative">
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+          
+          <Tabs defaultValue="login" value={activeTab} onValueChange={setActiveTab} className="mx-auto px-8 pb-8">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login">
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="your@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
                   />
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-400" />
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <div className="mt-1 relative">
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <a href="#" className="text-xs text-primary-600 hover:text-primary-900">
+                      Forgot password?
+                    </a>
+                  </div>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
                   />
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-400" />
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-accent-purple focus:ring-accent-purple"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-primary-700">
-                    Remember me
-                  </label>
-                </div>
-
-                <div className="text-sm">
-                  <Link to="/forgot-password" className="font-medium text-accent-purple hover:text-accent-purple/90">
-                    Forgot your password?
-                  </Link>
-                </div>
-              </div>
-
-              <div>
+                
                 <Button 
                   type="submit" 
-                  className="w-full bg-primary-900 hover:bg-primary-800"
+                  className="w-full bg-primary-900"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign in'}
+                  {isLoading ? 'Logging in...' : 'Login'}
                 </Button>
-              </div>
-            </form>
-
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <Separator className="w-full" />
+              </form>
+              
+              <div className="mt-6">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-primary-600">Or continue with</span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-primary-500">Or continue with</span>
+                
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleMetamaskLogin}
+                    disabled={isLoading}
+                  >
+                    <img 
+                      src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" 
+                      alt="Metamask logo" 
+                      className="w-5 h-5 mr-2"
+                    />
+                    Metamask
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleDojimaLogin}
+                    disabled={isLoading}
+                  >
+                    <svg className="w-5 h-5 mr-2 text-primary-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M8 12h8" />
+                      <path d="M12 8v8" />
+                    </svg>
+                    Dojima
+                  </Button>
                 </div>
               </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleWalletLogin}
-                  className="w-full"
+            </TabsContent>
+            
+            <TabsContent value="register">
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input 
+                    id="register-email" 
+                    type="email" 
+                    placeholder="your@email.com"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Password</Label>
+                  <Input 
+                    id="register-password" 
+                    type="password" 
+                    placeholder="••••••••"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="register-confirm-password">Confirm Password</Label>
+                  <Input 
+                    id="register-confirm-password" 
+                    type="password" 
+                    placeholder="••••••••"
+                    value={registerConfirmPassword}
+                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-primary-900"
+                  disabled={isLoading}
                 >
-                  <svg width="20" height="20" viewBox="0 0 784.37 1277.39" className="mr-2">
-                    <g>
-                      <polygon fill="#343434" points="392.07,0 383.5,29.11 383.5,873.74 392.07,882.29 784.13,650.54" />
-                      <polygon fill="#8C8C8C" points="392.07,0 -0,650.54 392.07,882.29 392.07,472.33" />
-                      <polygon fill="#3C3C3B" points="392.07,956.52 387.24,962.41 387.24,1263.28 392.07,1277.38 784.37,724.89" />
-                      <polygon fill="#8C8C8C" points="392.07,1277.38 392.07,956.52 0,724.89" />
-                      <polygon fill="#141414" points="392.07,882.29 784.13,650.54 392.07,472.33" />
-                      <polygon fill="#393939" points="0,650.54 392.07,882.29 392.07,472.33" />
-                    </g>
-                  </svg>
-                  Metamask
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleWalletLogin}
-                  className="w-full"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" className="mr-2">
-                    <circle cx="12" cy="12" r="10" fill="#4F46E5" />
-                    <path d="M12,6 L18,12 L12,18 L6,12 L12,6" fill="white" />
-                  </svg>
-                  Dojima
-                </Button>
-              </div>
-            </div>
-          </div>
+              </form>
+              
+              <p className="mt-4 text-sm text-center text-primary-600">
+                By signing up, you agree to our <a href="#" className="underline">Terms</a> and <a href="#" className="underline">Privacy Policy</a>
+              </p>
+            </TabsContent>
+          </Tabs>
         </div>
-      </div>
+      </main>
+      
+      <AppFooter />
     </div>
   );
 };

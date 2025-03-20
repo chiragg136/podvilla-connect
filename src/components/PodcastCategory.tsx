@@ -4,25 +4,28 @@ import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PodcastCard from './PodcastCard';
 import { Link } from 'react-router-dom';
+import { podcastService, Podcast } from '@/services/podcastService';
 
 interface PodcastCategoryProps {
   title: string;
   subtitle?: string;
   viewAll?: string;
+  category?: string;
+  onPlayPodcast?: (id: string) => void;
 }
 
-const PodcastCategory = ({ title, subtitle, viewAll }: PodcastCategoryProps) => {
+const PodcastCategory = ({ 
+  title, 
+  subtitle, 
+  viewAll, 
+  category,
+  onPlayPodcast 
+}: PodcastCategoryProps) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
-
-  const handlePlay = (id: string) => {
-    if (playingId === id) {
-      setPlayingId(null);
-    } else {
-      setPlayingId(id);
-    }
-  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -45,23 +48,40 @@ const PodcastCategory = ({ title, subtitle, viewAll }: PodcastCategoryProps) => 
     };
   }, []);
 
-  // Generate random podcasts for this category
-  const categoryPodcasts = Array(6).fill(null).map((_, index) => ({
-    id: `${title}-${index}`,
-    title: ['Tech Today', 'Design Matters', 'Future of AI', 'Global Economics', 'Mindful Moments', 'Creative Writing'][index % 6],
-    creator: ['James Wilson', 'Anna Roberts', 'Emily Chen', 'Michael Brown', 'Sarah Johnson', 'Lisa Morgan'][index % 6],
-    coverImage: `https://images.unsplash.com/photo-${[
-      '1605648916361-9bc12ad6a569', 
-      '1599689018356-f4bae9bf4bc3', 
-      '1531482615713-2afd69097998', 
-      '1589903308904-1010c2294adc', 
-      '1519389950473-47ba0277781c', 
-      '1495465798138-718f86d1a4bc'
-    ][index % 6]}?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80`,
-    duration: `${Math.floor(Math.random() * 40 + 20)} min`,
-    isNew: index % 3 === 0,
-    isTrending: index % 4 === 0,
-  }));
+  useEffect(() => {
+    const loadPodcasts = async () => {
+      setIsLoading(true);
+      try {
+        let podcastData: Podcast[] = [];
+        
+        if (category) {
+          podcastData = await podcastService.getPodcastsByCategory(category);
+        } else {
+          podcastData = await podcastService.getAllPodcasts();
+          // Shuffle the podcasts to simulate different categories
+          podcastData = podcastData.sort(() => Math.random() - 0.5).slice(0, 6);
+        }
+        
+        setPodcasts(podcastData);
+      } catch (error) {
+        console.error('Error loading podcasts:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadPodcasts();
+  }, [category]);
+
+  const handlePlay = (id: string) => {
+    if (playingId === id) {
+      setPlayingId(null);
+      if (onPlayPodcast) onPlayPodcast('');
+    } else {
+      setPlayingId(id);
+      if (onPlayPodcast) onPlayPodcast(id);
+    }
+  };
 
   return (
     <section ref={sectionRef} className="mb-16">
@@ -88,29 +108,43 @@ const PodcastCategory = ({ title, subtitle, viewAll }: PodcastCategoryProps) => 
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
-        {categoryPodcasts.map((podcast, index) => (
-          <div 
-            key={podcast.id}
-            className={`transform transition-all duration-500 ${
-              isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
-            }`}
-            style={{ transitionDelay: `${index * 100}ms` }}
-          >
-            <PodcastCard
-              id={podcast.id}
-              title={podcast.title}
-              creator={podcast.creator}
-              coverImage={podcast.coverImage}
-              duration={podcast.duration}
-              isNew={podcast.isNew}
-              isTrending={podcast.isTrending}
-              onPlay={handlePlay}
-              isPlaying={playingId === podcast.id}
-            />
-          </div>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
+          {Array(6).fill(null).map((_, index) => (
+            <div key={index} className="rounded-xl overflow-hidden animate-pulse">
+              <div className="aspect-square bg-gray-200"></div>
+              <div className="p-3 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
+          {podcasts.map((podcast, index) => (
+            <div 
+              key={podcast.id}
+              className={`transform transition-all duration-500 ${
+                isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+              }`}
+              style={{ transitionDelay: `${index * 100}ms` }}
+            >
+              <PodcastCard
+                id={podcast.id}
+                title={podcast.title}
+                creator={podcast.creator}
+                coverImage={podcast.coverImage}
+                duration={`${podcast.totalEpisodes} episodes`}
+                isNew={index % 3 === 0}
+                isTrending={index % 4 === 0}
+                onPlay={handlePlay}
+                isPlaying={playingId === podcast.id}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 };

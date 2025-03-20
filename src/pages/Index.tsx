@@ -6,18 +6,29 @@ import FeaturesSection from '@/components/FeaturesSection';
 import TrendingSection from '@/components/TrendingSection';
 import Player from '@/components/Player';
 import AppFooter from '@/components/AppFooter';
+import { podcastService } from '@/services/podcastService';
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPodcast, setCurrentPodcast] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate loading time
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
+    // Initialize podcast data and simulate loading
+    const initializeData = async () => {
+      try {
+        // Preload some podcast data
+        await podcastService.getAllPodcasts();
+      } catch (error) {
+        console.error('Error initializing data:', error);
+      } finally {
+        // Simulate loading time
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 500);
+      }
+    };
+    
+    initializeData();
   }, []);
 
   const handlePlayPodcast = (podcastId: string) => {

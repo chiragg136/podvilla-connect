@@ -5,19 +5,25 @@ import PodcastCategory from '@/components/PodcastCategory';
 import Player from '@/components/Player';
 import AppFooter from '@/components/AppFooter';
 import SearchBar from '@/components/SearchBar';
+import { podcastService } from '@/services/podcastService';
 
 const Browse = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
+  const [currentPodcastId, setCurrentPodcastId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate loading time
+    // Simulate loading time and fetch initial data
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
 
     return () => clearTimeout(timer);
   }, []);
+
+  const handlePlayPodcast = (id: string) => {
+    setCurrentPodcastId(id);
+  };
 
   // Categories
   const categories = [
@@ -76,24 +82,28 @@ const Browse = () => {
             title="Popular This Week"
             subtitle="Trending episodes that listeners are loving"
             viewAll="/popular"
+            category={activeCategory}
+            onPlayPodcast={handlePlayPodcast}
           />
           
           <PodcastCategory 
             title="New Releases"
             subtitle="Fresh content from your favorite creators"
             viewAll="/new"
+            onPlayPodcast={handlePlayPodcast}
           />
           
           <PodcastCategory 
             title="Editor's Choice"
             subtitle="Hand-picked shows selected by our team"
             viewAll="/editors-choice"
+            onPlayPodcast={handlePlayPodcast}
           />
         </div>
       </main>
       
       <AppFooter />
-      <Player />
+      <Player podcastId={currentPodcastId} />
     </div>
   );
 };
