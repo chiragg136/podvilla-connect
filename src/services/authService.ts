@@ -1,5 +1,6 @@
 
 import { toast } from "sonner";
+import { handleRegistration } from "@/api/registerHandler";
 
 // Define user interface
 export interface User {
@@ -144,7 +145,7 @@ class AuthService {
     }
   }
 
-  // Register new user (simulated)
+  // Register new user with email
   async register(email: string, password: string): Promise<User | null> {
     try {
       // Simulate API call
@@ -162,6 +163,16 @@ class AuthService {
       
       localStorage.setItem('podvilla_user', JSON.stringify(this.currentUser));
       localStorage.setItem('podvilla_auth', 'true');
+      
+      // Send welcome email
+      try {
+        const { success } = await handleRegistration(email, password);
+        if (!success) {
+          console.warn('Failed to send welcome email, but user registration was successful');
+        }
+      } catch (error) {
+        console.error('Error sending welcome email:', error);
+      }
       
       return this.currentUser;
     } catch (error) {
@@ -186,4 +197,3 @@ declare global {
     };
   }
 }
-

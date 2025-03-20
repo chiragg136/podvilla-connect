@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
-import { authService } from '@/services/authService';
+import { useUser } from '@/contexts/UserContext';
 
 const Login = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('login');
+  const { login, loginWithMetamask, loginWithDojima } = useUser();
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -35,11 +36,13 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const user = await authService.loginWithEmail(loginEmail, loginPassword);
+      const success = await login(loginEmail, loginPassword);
       
-      if (user) {
+      if (success) {
         toast.success('Login successful! Welcome back.');
         navigate('/library');
+      } else {
+        toast.error('Login failed. Please check your credentials.');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -65,11 +68,26 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const user = await authService.register(registerEmail, registerPassword);
+      // Call the register endpoint that will also send a welcome email
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: registerEmail,
+          password: registerPassword,
+        }),
+      });
       
-      if (user) {
-        toast.success('Registration successful! Welcome to PodVilla.');
-        navigate('/library');
+      if (response.ok) {
+        const success = await login(registerEmail, registerPassword);
+        if (success) {
+          toast.success('Registration successful! Welcome to PodVilla. Check your email for a welcome message.');
+          navigate('/library');
+        }
+      } else {
+        toast.error('Registration failed. Please try again.');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -83,11 +101,13 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const user = await authService.loginWithMetamask();
+      const success = await loginWithMetamask();
       
-      if (user) {
+      if (success) {
         toast.success('Metamask login successful!');
         navigate('/library');
+      } else {
+        toast.error('Metamask login failed. Please try again.');
       }
     } catch (error) {
       console.error('Metamask login error:', error);
@@ -101,11 +121,13 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const user = await authService.loginWithDojimaWallet();
+      const success = await loginWithDojima();
       
-      if (user) {
+      if (success) {
         toast.success('Dojima wallet login successful!');
         navigate('/library');
+      } else {
+        toast.error('Dojima wallet login failed. Please try again.');
       }
     } catch (error) {
       console.error('Dojima login error:', error);
