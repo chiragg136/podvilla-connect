@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,8 @@ import { useToast } from '@/components/ui/use-toast';
 interface PlayerProps {
   isVisible?: boolean;
   podcastId?: string | null;
+  episodeId?: string;
+  isPlaying?: boolean;
 }
 
 // Mock podcast data
@@ -56,9 +57,9 @@ const podcastData = {
   }
 };
 
-const Player = ({ isVisible = true, podcastId }: PlayerProps) => {
+const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlayState = false }: PlayerProps) => {
   const { toast } = useToast();
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(initialPlayState);
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
@@ -71,7 +72,7 @@ const Player = ({ isVisible = true, podcastId }: PlayerProps) => {
     if (podcastId && podcastData[podcastId as keyof typeof podcastData]) {
       setCurrentPodcast(podcastId);
       setShowPlayer(true);
-      setIsPlaying(true);
+      setIsPlaying(initialPlayState);
       setProgress(0);
       setTotalDuration(podcastData[podcastId as keyof typeof podcastData].duration);
       
@@ -80,7 +81,11 @@ const Player = ({ isVisible = true, podcastId }: PlayerProps) => {
         description: `${podcastData[podcastId as keyof typeof podcastData].title} by ${podcastData[podcastId as keyof typeof podcastData].creator}`,
       });
     }
-  }, [podcastId]);
+  }, [podcastId, initialPlayState]);
+
+  useEffect(() => {
+    setIsPlaying(initialPlayState);
+  }, [initialPlayState]);
 
   useEffect(() => {
     let interval: number | null = null;

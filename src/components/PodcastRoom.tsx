@@ -23,9 +23,10 @@ interface Room {
 
 interface PodcastRoomProps {
   podcastId: string;
+  podcastTitle: string;
 }
 
-const PodcastRoom = ({ podcastId }: PodcastRoomProps) => {
+const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
   const { isAuthenticated } = useUser();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -203,7 +204,7 @@ const PodcastRoom = ({ podcastId }: PodcastRoomProps) => {
         <div className="text-center py-10">
           <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium mb-2">No Rooms Available</h3>
-          <p className="text-gray-500 mb-6">Be the first to create a room for this podcast!</p>
+          <p className="text-gray-500 mb-6">Be the first to create a room for {podcastTitle}!</p>
           {isAuthenticated ? (
             <Button>
               <Users className="mr-2 h-4 w-4" />
