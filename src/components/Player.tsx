@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,14 @@ const podcastData = {
   }
 };
 
+// Mock episode data
+const episodeData: Record<string, any> = {
+  'ep1': { title: 'Introduction to Tech', duration: 240 },
+  'ep2': { title: 'Advanced Programming', duration: 300 },
+  'ep3': { title: 'Web Development Basics', duration: 180 },
+  'ep4': { title: 'AI and Machine Learning', duration: 420 },
+};
+
 const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlayState = false }: PlayerProps) => {
   const { toast } = useToast();
   const [isPlaying, setIsPlaying] = useState(initialPlayState);
@@ -81,7 +90,7 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
         description: `${podcastData[podcastId as keyof typeof podcastData].title} by ${podcastData[podcastId as keyof typeof podcastData].creator}`,
       });
     }
-  }, [podcastId, initialPlayState]);
+  }, [podcastId, initialPlayState, toast]);
 
   useEffect(() => {
     setIsPlaying(initialPlayState);
@@ -110,6 +119,14 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
   useEffect(() => {
     setShowPlayer(isVisible);
   }, [isVisible]);
+
+  // Handle episode-specific logic
+  useEffect(() => {
+    if (episodeId && episodeData[episodeId]) {
+      // If we have an episode ID, use its duration
+      setTotalDuration(episodeData[episodeId].duration);
+    }
+  }, [episodeId]);
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);

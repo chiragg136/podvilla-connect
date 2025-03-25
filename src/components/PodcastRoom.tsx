@@ -121,6 +121,17 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
     }
   };
 
+  const handleCreateRoom = () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to create a room');
+      navigate('/login');
+      return;
+    }
+    
+    toast.success(`Created a new room for ${podcastTitle}`);
+    // In a real app, this would open a modal or navigate to a room creation page
+  };
+
   return (
     <div className="space-y-6">
       {isLoading ? (
@@ -206,7 +217,7 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
           <h3 className="text-lg font-medium mb-2">No Rooms Available</h3>
           <p className="text-gray-500 mb-6">Be the first to create a room for {podcastTitle}!</p>
           {isAuthenticated ? (
-            <Button>
+            <Button onClick={handleCreateRoom}>
               <Users className="mr-2 h-4 w-4" />
               Create a Room
             </Button>

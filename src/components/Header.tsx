@@ -1,12 +1,15 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Menu, X, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@/contexts/UserContext';
 
 const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isAuthenticated, user } = useUser();
+  const navigate = useNavigate();
   
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +28,14 @@ const Header = () => {
 
   const toggleMenu = () => {
     setMenuOpen(!menuOpen);
+  };
+
+  const handleProfileClick = () => {
+    if (isAuthenticated) {
+      navigate('/profile');
+    } else {
+      navigate('/login');
+    }
   };
 
   return (
@@ -64,14 +75,27 @@ const Header = () => {
               className="pl-10 pr-4 py-2 w-64 rounded-full bg-gray-100 border-0 focus:ring-2 focus:ring-primary-500 text-sm transition-all"
             />
           </div>
-          <Button variant="ghost" size="icon" className="icon-button">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="icon-button"
+            onClick={handleProfileClick}
+          >
             <User className="h-5 w-5 text-primary-700" />
           </Button>
-          <Link to="/login">
-            <Button className="bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white rounded-full px-6">
-              Sign In
-            </Button>
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/profile">
+              <Button className="bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white rounded-full px-6">
+                My Profile
+              </Button>
+            </Link>
+          ) : (
+            <Link to="/login">
+              <Button className="bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white rounded-full px-6">
+                Sign In
+              </Button>
+            </Link>
+          )}
         </nav>
 
         {/* Mobile Menu Button */}
@@ -111,11 +135,19 @@ const Header = () => {
                   className="pl-10 pr-4 py-2 w-full rounded-md bg-gray-100 border-0 focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
-              <Link to="/login" onClick={() => setMenuOpen(false)}>
-                <Button className="w-full bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white">
-                  Sign In
-                </Button>
-              </Link>
+              {isAuthenticated ? (
+                <Link to="/profile" onClick={() => setMenuOpen(false)}>
+                  <Button className="w-full bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white">
+                    My Profile
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/login" onClick={() => setMenuOpen(false)}>
+                  <Button className="w-full bg-gradient-to-r from-accent-purple to-accent-pink hover:opacity-90 transition-opacity text-white">
+                    Sign In
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         )}
