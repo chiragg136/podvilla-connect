@@ -1,4 +1,3 @@
-
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -31,10 +30,7 @@ const PodcastUpload = () => {
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
-      toast('Please login first', {
-        description: 'You need to be logged in to upload podcasts',
-        variant: 'destructive'
-      });
+      toast.error('Please login first. You need to be logged in to upload podcasts');
     }
   }, [isAuthenticated, navigate]);
 
@@ -48,10 +44,7 @@ const PodcastUpload = () => {
       if (file.type.includes('audio')) {
         setSelectedAudioFile(file);
       } else {
-        toast('Invalid file type', {
-          description: 'Please select an audio file.',
-          variant: 'destructive'
-        });
+        toast.error('Invalid file type. Please select an audio file.');
       }
     }
   };
@@ -67,10 +60,7 @@ const PodcastUpload = () => {
         };
         reader.readAsDataURL(file);
       } else {
-        toast('Invalid file type', {
-          description: 'Please select an image file.',
-          variant: 'destructive'
-        });
+        toast.error('Invalid file type. Please select an image file.');
       }
     }
   };
@@ -82,18 +72,12 @@ const PodcastUpload = () => {
 
   const handleUpload = async () => {
     if (!user) {
-      toast('Please login to upload', {
-        description: 'You need to be logged in to upload podcasts',
-        variant: 'destructive'
-      });
+      toast.error('Please login to upload. You need to be logged in to upload podcasts');
       return;
     }
 
     if (!title || !description || !category || !selectedAudioFile || !selectedCoverImage || !episodeTitle) {
-      toast('Missing required fields', {
-        description: 'Please fill in all required fields and upload both audio and cover image',
-        variant: 'destructive'
-      });
+      toast.error('Missing required fields. Please fill in all required fields and upload both audio and cover image');
       return;
     }
 
@@ -119,10 +103,7 @@ const PodcastUpload = () => {
       );
 
       if (result.success) {
-        toast('Upload complete!', {
-          description: 'Your podcast has been successfully uploaded.',
-          variant: 'default'
-        });
+        toast.success('Upload complete! Your podcast has been successfully uploaded.');
         
         // Reset form
         setTitle('');
@@ -137,17 +118,11 @@ const PodcastUpload = () => {
         // Navigate to profile page
         navigate('/profile');
       } else {
-        toast('Upload failed', {
-          description: result.error || 'An error occurred while uploading your podcast.',
-          variant: 'destructive'
-        });
+        toast.error(result.error || 'An error occurred while uploading your podcast.');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      toast('Upload failed', {
-        description: 'An error occurred while uploading your podcast.',
-        variant: 'destructive'
-      });
+      toast.error('Upload failed. An error occurred while uploading your podcast.');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -37,8 +36,7 @@ const Login = () => {
     
     if (!loginEmail || !loginPassword) {
       toast('Please fill in all fields', {
-        description: 'Email and password are required',
-        variant: 'destructive'
+        description: 'Email and password are required'
       });
       return;
     }
@@ -49,23 +47,14 @@ const Login = () => {
       const success = await login(loginEmail, loginPassword);
       
       if (success) {
-        toast('Login successful!', {
-          description: 'Welcome back to PodVilla.',
-          variant: 'default'
-        });
+        toast.success('Login successful! Welcome back to PodVilla.');
         navigate('/profile');
       } else {
-        toast('Login failed', {
-          description: 'Please check your credentials.',
-          variant: 'destructive'
-        });
+        toast.error('Login failed. Please check your credentials.');
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast('Login failed', {
-        description: 'Please check your credentials.',
-        variant: 'destructive'
-      });
+      toast.error('Login failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -76,17 +65,13 @@ const Login = () => {
     
     if (!registerEmail || !registerPassword || !registerConfirmPassword) {
       toast('Please fill in all fields', {
-        description: 'All fields are required for registration',
-        variant: 'destructive'
+        description: 'All fields are required for registration'
       });
       return;
     }
     
     if (registerPassword !== registerConfirmPassword) {
-      toast('Passwords do not match', {
-        description: 'Please ensure both passwords are identical',
-        variant: 'destructive'
-      });
+      toast.error('Passwords do not match. Please ensure both passwords are identical.');
       return;
     }
     
@@ -108,24 +93,15 @@ const Login = () => {
       if (response.ok) {
         const success = await login(registerEmail, registerPassword);
         if (success) {
-          toast('Registration successful!', {
-            description: 'Welcome to PodVilla. Check your email for a welcome message.',
-            variant: 'default'
-          });
+          toast.success('Registration successful! Welcome to PodVilla. Check your email for a welcome message.');
           navigate('/profile');
         }
       } else {
-        toast('Registration failed', {
-          description: 'Please try again with different credentials.',
-          variant: 'destructive'
-        });
+        toast.error('Registration failed. Please try again with different credentials.');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      toast('Registration failed', {
-        description: 'Please try again later.',
-        variant: 'destructive'
-      });
+      toast.error('Registration failed. Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -138,23 +114,14 @@ const Login = () => {
       const success = await loginWithMetamask();
       
       if (success) {
-        toast('Metamask login successful!', {
-          description: 'Welcome to your PodVilla account',
-          variant: 'default'
-        });
+        toast.success('Metamask login successful! Welcome to your PodVilla account');
         navigate('/profile');
       } else {
-        toast('Metamask login failed', {
-          description: 'Please try again or use another login method.',
-          variant: 'destructive'
-        });
+        toast.error('Metamask login failed. Please try again or use another login method.');
       }
     } catch (error) {
       console.error('Metamask login error:', error);
-      toast('Metamask login failed', {
-        description: 'Please check your wallet connection.',
-        variant: 'destructive'
-      });
+      toast.error('Metamask login failed. Please check your wallet connection.');
     } finally {
       setIsLoading(false);
     }
@@ -167,23 +134,14 @@ const Login = () => {
       const success = await loginWithDojima();
       
       if (success) {
-        toast('Dojima wallet login successful!', {
-          description: 'Welcome to your PodVilla account',
-          variant: 'default'
-        });
+        toast.success('Dojima wallet login successful! Welcome to your PodVilla account');
         navigate('/profile');
       } else {
-        toast('Dojima wallet login failed', {
-          description: 'Please try again or use another login method.',
-          variant: 'destructive'
-        });
+        toast.error('Dojima wallet login failed. Please try again or use another login method.');
       }
     } catch (error) {
       console.error('Dojima login error:', error);
-      toast('Dojima wallet login failed', {
-        description: 'Please check your wallet connection.',
-        variant: 'destructive'
-      });
+      toast.error('Dojima wallet login failed. Please check your wallet connection.');
     } finally {
       setIsLoading(false);
     }

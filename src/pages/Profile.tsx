@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -43,10 +42,7 @@ const Profile = () => {
       setFavoritePodcasts(randomFavorites);
     } catch (error) {
       console.error('Error loading user content:', error);
-      toast('Failed to load content', {
-        description: 'Please try refreshing the page',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load content. Please try refreshing the page');
     } finally {
       setIsLoading(false);
     }
