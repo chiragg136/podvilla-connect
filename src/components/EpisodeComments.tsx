@@ -97,7 +97,7 @@ const EpisodeComments = ({ podcastId }: EpisodeCommentsProps) => {
         id: Date.now().toString(),
         userId: user?.id || 'guest',
         userName: user?.name || 'Guest User',
-        userAvatar: user?.avatar || 'https://via.placeholder.com/150',
+        userAvatar: user?.profileImage || 'https://via.placeholder.com/150',
         content: newComment,
         timestamp: new Date(),
       };
@@ -139,7 +139,7 @@ const EpisodeComments = ({ podcastId }: EpisodeCommentsProps) => {
           <div className="flex gap-4">
             <Avatar className="h-10 w-10">
               <AvatarImage 
-                src={isAuthenticated ? (user?.avatar || 'https://via.placeholder.com/150') : 'https://via.placeholder.com/150'} 
+                src={isAuthenticated ? (user?.profileImage || 'https://via.placeholder.com/150') : 'https://via.placeholder.com/150'} 
                 alt="Your avatar" 
               />
               <AvatarFallback>{isAuthenticated ? (user?.name?.[0] || 'G') : 'G'}</AvatarFallback>
