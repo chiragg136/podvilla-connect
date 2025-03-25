@@ -54,7 +54,7 @@ const Index = () => {
       </main>
       
       <AppFooter />
-      <Player podcastId={currentPodcast} />
+      <Player podcastId={currentPodcast} isPlaying={currentPodcast !== null} />
     </div>
   );
 };
