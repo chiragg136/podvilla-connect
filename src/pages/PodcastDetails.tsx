@@ -1,261 +1,318 @@
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Pause, Heart, Share2, MessageSquare, Users } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { ArrowLeft, Play, Pause, Bookmark, Share, Download, Clock, Calendar, MessageSquare, Users } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card, CardContent } from '@/components/ui/card';
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
+import { podcastService, Podcast, Episode } from '@/services/podcastService';
 import { useUser } from '@/contexts/UserContext';
+import Player from '@/components/Player';
 import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { user, isAuthenticated } = useUser();
-  const [isLoading, setIsLoading] = useState(true);
-  const [podcast, setPodcast] = useState({
-    id: '',
-    title: '',
-    description: '',
-    creator: '',
-    coverImage: '',
-    audioUrl: '',
-  });
+  const [podcast, setPodcast] = useState<Podcast | null>(null);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeTab, setActiveTab] = useState("details");
-  const [showRoomDialog, setShowRoomDialog] = useState(false);
-  const [roomName, setRoomName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const { isAuthenticated } = useUser();
+  const [activeTab, setActiveTab] = useState('episodes');
 
   useEffect(() => {
-    const fetchPodcast = async () => {
+    const fetchPodcastDetails = async () => {
+      if (!id) return;
+      
       setIsLoading(true);
       try {
-        // Simulate fetching podcast data
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Mock podcast data
-        const mockPodcast = {
-          id: id || '1',
-          title: 'The Future of Technology',
-          description: 'A podcast discussing the latest trends and innovations in technology.',
-          creator: 'TechGuru',
-          coverImage: 'https://images.unsplash.com/photo-1496181133206-80fa9e748b63?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60',
-          audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-        };
-
-        setPodcast(mockPodcast);
+        const podcastData = await podcastService.getPodcastById(id);
+        if (podcastData) {
+          setPodcast(podcastData);
+          
+          // Fetch episodes
+          const episodesData = await podcastService.getEpisodesByPodcastId(id);
+          setEpisodes(episodesData);
+          
+          // Check if favorited
+          if (isAuthenticated) {
+            const favoriteStatus = await podcastService.isPodcastFavorited(id);
+            setIsFavorite(favoriteStatus);
+          }
+        } else {
+          toast.error('Podcast not found');
+        }
       } catch (error) {
-        console.error('Error fetching podcast:', error);
-        toast.error('Failed to load podcast details. Please try again.');
+        console.error('Error fetching podcast details:', error);
+        toast.error('Failed to load podcast details');
       } finally {
         setIsLoading(false);
       }
     };
+    
+    fetchPodcastDetails();
+  }, [id, isAuthenticated]);
 
-    fetchPodcast();
-  }, [id]);
+  const toggleFavorite = async () => {
+    if (!id) return;
+    
+    try {
+      const newStatus = await podcastService.toggleFavoritePodcast(id);
+      setIsFavorite(newStatus);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorite status');
+    }
+  };
 
-  const handleSubscribe = () => {
+  const handlePlayEpisode = (episode: Episode) => {
+    if (currentEpisode && currentEpisode.id === episode.id) {
+      setIsPlaying(!isPlaying);
+    } else {
+      setCurrentEpisode(episode);
+      setIsPlaying(true);
+    }
+  };
+
+  const downloadEpisode = async (episode: Episode) => {
     if (!isAuthenticated) {
-      toast('Please login first', { 
-        description: 'You need to be logged in to subscribe to podcasts' 
+      toast.error('Please login to download episodes');
+      return;
+    }
+    
+    try {
+      await podcastService.addDownload(episode.id);
+      toast.success('Episode downloaded for offline listening');
+    } catch (error) {
+      console.error('Error downloading episode:', error);
+      toast.error('Failed to download episode');
+    }
+  };
+
+  const shareEpisode = (episode: Episode) => {
+    navigator.clipboard.writeText(window.location.href + '?episode=' + episode.id)
+      .then(() => {
+        toast.success('Link copied to clipboard');
+      })
+      .catch(() => {
+        toast.error('Failed to copy link');
       });
-      navigate('/login');
-      return;
-    }
-    
-    // Simulate subscribe logic
-    toast.success('Subscribed successfully!');
-  };
-  
-  const handleFavorite = () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to add this podcast to your favorites.');
-      return;
-    }
-    
-    // Simulate favorite logic
-    toast.success('Added to favorites!');
   };
 
-  const handleCreateRoom = () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to create a room.');
-      return;
-    }
-    
-    if (!roomName.trim()) {
-      toast.error('Please enter a room name.');
-      return;
-    }
-    
-    // Simulate room creation
-    toast.success(`Room "${roomName}" created successfully!`);
-    setShowRoomDialog(false);
-    setActiveTab("rooms");
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }).format(date);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="flex-grow flex items-center justify-center">
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent-purple to-accent-pink animate-pulse-slow"></div>
+        </div>
+        <AppFooter />
+      </div>
+    );
+  }
+
+  if (!podcast) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="flex-grow flex flex-col items-center justify-center p-6">
+          <h2 className="text-2xl font-bold mb-4">Podcast Not Found</h2>
+          <p className="text-primary-600 mb-6">The podcast you're looking for doesn't exist or has been removed.</p>
+          <Link to="/discover">
+            <Button>Browse Podcasts</Button>
+          </Link>
+        </div>
+        <AppFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-
-      <main className="flex-grow pt-24 md:pt-32 px-4 md:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        {isLoading ? (
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle><Skeleton className="h-6 w-64" /></CardTitle>
-              <CardDescription><Skeleton className="h-4 w-40" /></CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <Skeleton className="h-40 w-full rounded-md" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-4 w-2/3" />
-              <div className="flex justify-between">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-24" />
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold">{podcast.title}</CardTitle>
-                <CardDescription>By {podcast.creator}</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-6">
-                <div className="relative w-full aspect-video rounded-md overflow-hidden">
-                  <img
-                    src={podcast.coverImage}
-                    alt={podcast.title}
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-                <p>{podcast.description}</p>
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                  <Button onClick={() => setIsPlaying(!isPlaying)}>
-                    {isPlaying ? (
-                      <>
-                        <Pause className="mr-2 h-4 w-4" />
-                        Pause
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Play
-                      </>
-                    )}
-                  </Button>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" onClick={handleFavorite}>
-                      <Heart className="mr-2 h-4 w-4" />
-                      Favorite
-                    </Button>
-                    <Button variant="outline" onClick={handleSubscribe}>
-                      Subscribe
-                    </Button>
-                    <Dialog open={showRoomDialog} onOpenChange={setShowRoomDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline">
-                          <Users className="mr-2 h-4 w-4" />
-                          Create Room
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create a Podcast Room</DialogTitle>
-                          <DialogDescription>
-                            Create a room to discuss this podcast with other listeners
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <label htmlFor="roomName" className="text-sm font-medium">
-                              Room Name
-                            </label>
-                            <Input
-                              id="roomName"
-                              value={roomName}
-                              onChange={(e) => setRoomName(e.target.value)}
-                              placeholder="Enter a name for your room"
-                            />
-                          </div>
-                          <Button onClick={handleCreateRoom} className="w-full">
-                            Create Room
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                    <Button variant="secondary">
-                      <Share2 className="mr-2 h-4 w-4" />
-                      Share
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-3 mb-6">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="discussions">
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Discussions
-                </TabsTrigger>
-                <TabsTrigger value="rooms">
-                  <Users className="mr-2 h-4 w-4" />
-                  Rooms
-                </TabsTrigger>
-              </TabsList>
+      
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <Link to="/discover" className="inline-flex items-center text-primary-600 hover:text-primary-900 mb-6">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Browse
+        </Link>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div className="aspect-square rounded-xl overflow-hidden">
+            <img 
+              src={podcast.coverImage} 
+              alt={podcast.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          
+          <div className="md:col-span-2">
+            <div className="flex flex-wrap gap-2 mb-4">
+              {podcast.categories.map((category, index) => (
+                <Badge key={index} variant="outline" className="bg-primary-50">
+                  {category}
+                </Badge>
+              ))}
+            </div>
+            
+            <h1 className="text-3xl md:text-4xl font-display font-bold text-primary-900 mb-2">
+              {podcast.title}
+            </h1>
+            
+            <div className="flex items-center mb-4">
+              <Avatar className="h-6 w-6 mr-2">
+                <AvatarImage src="https://github.com/shadcn.png" />
+                <AvatarFallback>{podcast.creator[0]}</AvatarFallback>
+              </Avatar>
+              <span className="text-primary-700">{podcast.creator}</span>
+            </div>
+            
+            <p className="text-primary-600 mb-6">
+              {podcast.description}
+            </p>
+            
+            <div className="flex flex-wrap gap-3 mb-6">
+              <Button 
+                onClick={() => handlePlayEpisode(episodes[0])}
+                disabled={episodes.length === 0}
+                className="bg-accent-purple hover:bg-accent-purple-dark"
+              >
+                {isPlaying && currentEpisode === episodes[0] ? (
+                  <Pause className="mr-2 h-4 w-4" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {isPlaying && currentEpisode === episodes[0] ? 'Pause' : 'Play Latest'}
+              </Button>
               
-              <TabsContent value="details">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>About This Podcast</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-500">
-                      {podcast.description}
-                    </p>
-                    <div className="mt-4">
-                      <h3 className="font-medium">Creator</h3>
-                      <div className="flex items-center mt-2">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt={podcast.creator} />
-                          <AvatarFallback>{podcast.creator[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium">{podcast.creator}</p>
-                          <p className="text-sm text-gray-500">Podcast Host</p>
+              <Button 
+                variant="outline" 
+                onClick={toggleFavorite}
+                className={isFavorite ? "bg-primary-50" : ""}
+              >
+                <Bookmark className={`mr-2 h-4 w-4 ${isFavorite ? "fill-accent-purple text-accent-purple" : ""}`} />
+                {isFavorite ? 'Saved' : 'Save'}
+              </Button>
+            </div>
+            
+            <div className="flex items-center text-sm text-primary-500">
+              <div className="flex items-center mr-4">
+                <MessageSquare className="mr-1 h-4 w-4" />
+                {podcast.totalEpisodes} episodes
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <Tabs defaultValue="episodes" value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="episodes">Episodes</TabsTrigger>
+            <TabsTrigger value="discussions">Discussions</TabsTrigger>
+            <TabsTrigger value="rooms">Rooms</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="episodes" className="space-y-4">
+            {episodes.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center">
+                  <p className="text-primary-600">No episodes available yet.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              episodes.map((episode) => (
+                <Card key={episode.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="p-4 flex flex-col md:flex-row md:items-center gap-4">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg mb-1">{episode.title}</h3>
+                        <p className="text-primary-600 text-sm mb-2">{episode.description}</p>
+                        
+                        <div className="flex flex-wrap text-xs text-primary-500 gap-x-4 gap-y-1">
+                          <div className="flex items-center">
+                            <Clock className="mr-1 h-3 w-3" />
+                            {formatDuration(episode.duration)}
+                          </div>
+                          <div className="flex items-center">
+                            <Calendar className="mr-1 h-3 w-3" />
+                            {formatDate(episode.releaseDate)}
+                          </div>
+                          {episode.isExclusive && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+                              Premium
+                            </Badge>
+                          )}
                         </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => handlePlayEpisode(episode)}
+                          className="bg-accent-purple hover:bg-accent-purple-dark"
+                        >
+                          {isPlaying && currentEpisode?.id === episode.id ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => downloadEpisode(episode)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => shareEpisode(episode)}
+                        >
+                          <Share className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-              
-              <TabsContent value="discussions">
-                <EpisodeComments podcastId={id || ''} />
-              </TabsContent>
-              
-              <TabsContent value="rooms">
-                <PodcastRoom podcastId={id || ''} />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
+              ))
+            )}
+          </TabsContent>
+          
+          <TabsContent value="discussions">
+            <EpisodeComments podcastId={id || ''} />
+          </TabsContent>
+          
+          <TabsContent value="rooms">
+            <PodcastRoom podcastId={id || ''} podcastTitle={podcast.title} />
+          </TabsContent>
+        </Tabs>
       </main>
-
+      
       <AppFooter />
+      {currentEpisode && <Player podcastId={id || ''} episodeId={currentEpisode.id} isPlaying={isPlaying} />}
     </div>
   );
 };
