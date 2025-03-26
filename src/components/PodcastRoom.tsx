@@ -38,47 +38,62 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
     const fetchRooms = async () => {
       setIsLoading(true);
       try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Get rooms from localStorage
+        const storedRooms = localStorage.getItem('podcastRooms');
+        let availableRooms: Room[] = [];
         
-        // Mock data
-        const mockRooms = [
-          {
-            id: '1',
-            name: 'Tech Enthusiasts Discussion',
-            creatorId: 'creator1',
-            creatorName: 'James Wilson',
-            creatorAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
-            memberCount: 24,
-            isLive: true,
-            tags: ['AI', 'Robotics', 'Coding'],
-            createdAt: new Date(Date.now() - 7200000), // 2 hours ago
-          },
-          {
-            id: '2',
-            name: 'Beginner-Friendly Tech Chat',
-            creatorId: 'creator2',
-            creatorName: 'Emily Chen',
-            creatorAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
-            memberCount: 12,
-            isLive: true,
-            tags: ['Beginners', 'Learning', 'Q&A'],
-            createdAt: new Date(Date.now() - 10800000), // 3 hours ago
-          },
-          {
-            id: '3',
-            name: 'Future of Tech Debate',
-            creatorId: 'creator3',
-            creatorName: 'Daniel Brown',
-            creatorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
-            memberCount: 45,
-            isLive: false,
-            tags: ['Future', 'Ethics', 'Discussion'],
-            createdAt: new Date(Date.now() - 86400000), // 1 day ago
-          }
-        ];
+        if (storedRooms) {
+          const parsedRooms = JSON.parse(storedRooms);
+          // Convert string dates back to Date objects
+          availableRooms = parsedRooms.map((room: any) => ({
+            ...room,
+            createdAt: new Date(room.createdAt)
+          }));
+        }
         
-        setRooms(mockRooms);
+        // If no stored rooms or first load, provide mock data
+        if (availableRooms.length === 0) {
+          availableRooms = [
+            {
+              id: '1',
+              name: 'Tech Enthusiasts Discussion',
+              creatorId: 'creator1',
+              creatorName: 'James Wilson',
+              creatorAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
+              memberCount: 24,
+              isLive: true,
+              tags: ['AI', 'Robotics', 'Coding'],
+              createdAt: new Date(Date.now() - 7200000), // 2 hours ago
+            },
+            {
+              id: '2',
+              name: 'Beginner-Friendly Tech Chat',
+              creatorId: 'creator2',
+              creatorName: 'Emily Chen',
+              creatorAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
+              memberCount: 12,
+              isLive: true,
+              tags: ['Beginners', 'Learning', 'Q&A'],
+              createdAt: new Date(Date.now() - 10800000), // 3 hours ago
+            },
+            {
+              id: '3',
+              name: 'Future of Tech Debate',
+              creatorId: 'creator3',
+              creatorName: 'Daniel Brown',
+              creatorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
+              memberCount: 45,
+              isLive: false,
+              tags: ['Future', 'Ethics', 'Discussion'],
+              createdAt: new Date(Date.now() - 86400000), // 1 day ago
+            }
+          ];
+          
+          // Store the mock data for future use
+          localStorage.setItem('podcastRooms', JSON.stringify(availableRooms));
+        }
+        
+        setRooms(availableRooms);
       } catch (error) {
         console.error('Error fetching rooms:', error);
         toast.error('Failed to load rooms. Please try again.');

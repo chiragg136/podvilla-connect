@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Plus } from 'lucide-react';
+import { Users, Plus, X } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
-import { X } from 'lucide-react';
+import { useUser } from '@/contexts/UserContext';
 
 interface CreateRoomModalProps {
   podcastTitle: string;
@@ -31,6 +31,7 @@ const CreateRoomModal = ({ podcastTitle, onRoomCreated }: CreateRoomModalProps) 
   const [currentTag, setCurrentTag] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useUser();
 
   const handleAddTag = () => {
     if (currentTag.trim() && !tags.includes(currentTag.trim())) {
@@ -58,18 +59,39 @@ const CreateRoomModal = ({ podcastTitle, onRoomCreated }: CreateRoomModalProps) 
 
     setIsSubmitting(true);
     try {
-      // Simulate API call to create a room
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Create a unique ID for the room
+      const roomId = `room_${Date.now()}`;
+      
+      // Create the room object
+      const newRoom = {
+        id: roomId,
+        name: roomName.trim(),
+        creatorId: user?.id || 'unknown',
+        creatorName: user?.name || 'Anonymous User',
+        creatorAvatar: user?.profileImageUrl || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
+        memberCount: 1, // Start with the creator
+        isLive: true,
+        tags: [...tags],
+        createdAt: new Date(),
+      };
+      
+      // Store the room in localStorage for persistence between refreshes
+      const existingRooms = JSON.parse(localStorage.getItem('podcastRooms') || '[]');
+      localStorage.setItem('podcastRooms', JSON.stringify([...existingRooms, newRoom]));
 
       toast.success('Room created successfully!');
-      setOpen(false);
-      onRoomCreated();
-
+      
       // Reset form
       setRoomName('');
       setRoomDescription('');
       setTags([]);
       setIsPrivate(false);
+      
+      // Close the modal
+      setOpen(false);
+      
+      // Notify parent component
+      onRoomCreated();
     } catch (error) {
       console.error('Error creating room:', error);
       toast.error('Failed to create room. Please try again.');
