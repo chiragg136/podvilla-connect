@@ -68,7 +68,7 @@ const CreateRoomModal = ({ podcastTitle, onRoomCreated }: CreateRoomModalProps) 
         name: roomName.trim(),
         creatorId: user?.id || 'unknown',
         creatorName: user?.name || 'Anonymous User',
-        creatorAvatar: user?.profileImageUrl || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
+        creatorAvatar: user?.profileImage || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
         memberCount: 1, // Start with the creator
         isLive: true,
         tags: [...tags],
