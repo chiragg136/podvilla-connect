@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import Browse from "./pages/Browse";
 import Login from "./pages/Login";
 import Library from "./pages/Library";
+import Rooms from "./pages/Rooms";
 import Profile from "./pages/Profile";
 import PodcastUpload from "./pages/PodcastUpload";
 import PodcastDetails from "./pages/PodcastDetails";
@@ -30,6 +31,7 @@ const App = () => {
               <Route path="/discover" element={<Browse />} />
               <Route path="/login" element={<Login />} />
               <Route path="/library" element={<Library />} />
+              <Route path="/rooms" element={<Rooms />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/upload" element={<PodcastUpload />} />
               <Route path="/podcast/:id" element={<PodcastDetails />} />

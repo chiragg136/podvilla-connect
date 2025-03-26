@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Plus, X } from 'lucide-react';
+import { Users, Plus, X, PlusCircle } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useUser } from '@/contexts/UserContext';
 
@@ -103,16 +103,16 @@ const CreateRoomModal = ({ podcastTitle, onRoomCreated }: CreateRoomModalProps) 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full">
-          <Users className="mr-2 h-4 w-4" />
-          Create a Room
+        <Button className="flex items-center gap-2">
+          <PlusCircle className="h-4 w-4" />
+          Create Room
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create a Discussion Room</DialogTitle>
           <DialogDescription>
-            Create a room to discuss "{podcastTitle}" with other listeners
+            Create a room to discuss {podcastTitle !== "New Room" ? `"${podcastTitle}"` : "podcasts"} with other listeners
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
