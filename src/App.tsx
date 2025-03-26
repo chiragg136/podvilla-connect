@@ -11,6 +11,7 @@ import Browse from "./pages/Browse";
 import Login from "./pages/Login";
 import Library from "./pages/Library";
 import Rooms from "./pages/Rooms";
+import RoomChannel from "./pages/RoomChannel";
 import Profile from "./pages/Profile";
 import PodcastUpload from "./pages/PodcastUpload";
 import PodcastDetails from "./pages/PodcastDetails";
@@ -32,6 +33,7 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/library" element={<Library />} />
               <Route path="/rooms" element={<Rooms />} />
+              <Route path="/rooms/:roomId" element={<RoomChannel />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/upload" element={<PodcastUpload />} />
               <Route path="/podcast/:id" element={<PodcastDetails />} />

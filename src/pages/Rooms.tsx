@@ -9,7 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserPlus, Crown, MessageSquare, RefreshCw, PlusCircle } from 'lucide-react';
+import { 
+  Users, 
+  UserPlus, 
+  Crown, 
+  MessageSquare, 
+  RefreshCw, 
+  PlusCircle,
+  Hash,
+  ArrowRight
+} from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from 'react-router-dom';
 import CreateRoomModal from '@/components/CreateRoomModal';
@@ -17,12 +26,14 @@ import CreateRoomModal from '@/components/CreateRoomModal';
 interface Room {
   id: string;
   name: string;
+  description?: string;
   creatorId: string;
   creatorName: string;
   creatorAvatar: string;
   memberCount: number;
   isLive: boolean;
   tags: string[];
+  channels: string[];
   createdAt: Date;
 }
 
@@ -44,10 +55,11 @@ const Rooms = () => {
         
         if (storedRooms) {
           const parsedRooms = JSON.parse(storedRooms);
-          // Convert string dates back to Date objects
+          // Convert string dates back to Date objects and ensure channels exist
           availableRooms = parsedRooms.map((room: any) => ({
             ...room,
-            createdAt: new Date(room.createdAt)
+            createdAt: new Date(room.createdAt),
+            channels: room.channels || ['general'] // Ensure channels exist
           }));
         }
         
@@ -57,34 +69,40 @@ const Rooms = () => {
             {
               id: '1',
               name: 'Tech Enthusiasts Discussion',
+              description: 'A community for tech enthusiasts to discuss the latest innovations',
               creatorId: 'creator1',
               creatorName: 'James Wilson',
               creatorAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
               memberCount: 24,
               isLive: true,
               tags: ['AI', 'Robotics', 'Coding'],
+              channels: ['general', 'ai-discussion', 'project-showcase'],
               createdAt: new Date(Date.now() - 7200000), // 2 hours ago
             },
             {
               id: '2',
               name: 'Beginner-Friendly Tech Chat',
+              description: 'A welcoming space for beginners to learn about technology',
               creatorId: 'creator2',
               creatorName: 'Emily Chen',
               creatorAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
               memberCount: 12,
               isLive: true,
               tags: ['Beginners', 'Learning', 'Q&A'],
+              channels: ['general', 'questions', 'resources'],
               createdAt: new Date(Date.now() - 10800000), // 3 hours ago
             },
             {
               id: '3',
               name: 'Future of Tech Debate',
+              description: 'Debates about where technology is headed in the next decade',
               creatorId: 'creator3',
               creatorName: 'Daniel Brown',
               creatorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=256&h=256&q=80',
               memberCount: 45,
               isLive: false,
               tags: ['Future', 'Ethics', 'Discussion'],
+              channels: ['general', 'ethics', 'predictions', 'policy'],
               createdAt: new Date(Date.now() - 86400000), // 1 day ago
             }
           ];
@@ -112,11 +130,8 @@ const Rooms = () => {
       return;
     }
     
-    // Simulate joining room
-    toast.success(`Joined room: ${roomName}`);
-    
-    // In a real app, this would navigate to the room or open a modal
-    console.log(`Joined room with ID: ${roomId}`);
+    // Navigate to the room page
+    navigate(`/rooms/${roomId}`);
   };
   
   const formatDate = (date: Date) => {
@@ -222,6 +237,9 @@ const Rooms = () => {
                       )}
                     </div>
                     <CardDescription>{formatDate(room.createdAt)}</CardDescription>
+                    {room.description && (
+                      <p className="text-sm text-gray-600 mt-2">{room.description}</p>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -241,6 +259,21 @@ const Rooms = () => {
                           </div>
                         </div>
                       </div>
+                      
+                      <div className="flex flex-wrap gap-2 my-2 md:my-0">
+                        {(room.channels || ['general']).slice(0, 3).map((channel) => (
+                          <Badge key={channel} variant="outline" className="bg-gray-100 flex items-center gap-1">
+                            <Hash className="h-3 w-3" />
+                            {channel}
+                          </Badge>
+                        ))}
+                        {(room.channels || ['general']).length > 3 && (
+                          <Badge variant="outline" className="bg-gray-100">
+                            +{(room.channels || ['general']).length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      
                       <div className="flex flex-wrap gap-2 my-2 md:my-0">
                         {room.tags.map((tag) => (
                           <Badge key={tag} variant="outline" className="bg-gray-100">
@@ -248,6 +281,7 @@ const Rooms = () => {
                           </Badge>
                         ))}
                       </div>
+                      
                       <Button 
                         onClick={() => handleJoinRoom(room.id, room.name)}
                         className={room.isLive ? 'bg-red-600 hover:bg-red-700' : ''}
@@ -259,8 +293,8 @@ const Rooms = () => {
                           </>
                         ) : (
                           <>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            View Room
+                            <ArrowRight className="mr-2 h-4 w-4" />
+                            Enter Room
                           </>
                         )}
                       </Button>
