@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +57,6 @@ const PodcastCategory = ({
           podcastData = await podcastService.getPodcastsByCategory(category);
         } else {
           podcastData = await podcastService.getAllPodcasts();
-          // Shuffle the podcasts to simulate different categories
           podcastData = podcastData.sort(() => Math.random() - 0.5).slice(0, 6);
         }
         
@@ -136,10 +134,7 @@ const PodcastCategory = ({
                 creator={podcast.creator}
                 coverImage={podcast.coverImage}
                 duration={`${podcast.totalEpisodes} episodes`}
-                isNew={index % 3 === 0}
-                isTrending={index % 4 === 0}
-                onPlay={handlePlay}
-                isPlaying={playingId === podcast.id}
+                onPlay={() => handlePlay(podcast.id)}
               />
             </div>
           ))}
