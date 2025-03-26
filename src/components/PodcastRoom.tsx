@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserPlus, Crown, MessageSquare } from 'lucide-react';
+import { Users, UserPlus, Crown, MessageSquare, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import CreateRoomModal from './CreateRoomModal';
 
 interface Room {
   id: string;
@@ -31,6 +32,7 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -86,7 +88,7 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
     };
     
     fetchRooms();
-  }, [podcastId]);
+  }, [podcastId, refreshKey]);
   
   const handleJoinRoom = (roomId: string, roomName: string) => {
     if (!isAuthenticated) {
@@ -121,19 +123,25 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
     }
   };
 
-  const handleCreateRoom = () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to create a room');
-      navigate('/login');
-      return;
-    }
-    
-    toast.success(`Created a new room for ${podcastTitle}`);
-    // In a real app, this would open a modal or navigate to a room creation page
+  const handleRefresh = () => {
+    setRefreshKey(old => old + 1);
+    toast.info('Refreshing rooms...');
+  };
+
+  const handleRoomCreated = () => {
+    setRefreshKey(old => old + 1);
   };
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-semibold">{rooms.length} Available Rooms</h3>
+        <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
       {isLoading ? (
         Array.from({ length: 3 }).map((_, index) => (
           <Card key={index} className="animate-pulse">
@@ -217,15 +225,24 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
           <h3 className="text-lg font-medium mb-2">No Rooms Available</h3>
           <p className="text-gray-500 mb-6">Be the first to create a room for {podcastTitle}!</p>
           {isAuthenticated ? (
-            <Button onClick={handleCreateRoom}>
-              <Users className="mr-2 h-4 w-4" />
-              Create a Room
-            </Button>
+            <CreateRoomModal 
+              podcastTitle={podcastTitle} 
+              onRoomCreated={handleRoomCreated} 
+            />
           ) : (
             <Button onClick={() => navigate('/login')}>
               Login to Create a Room
             </Button>
           )}
+        </div>
+      )}
+
+      {rooms.length > 0 && isAuthenticated && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <CreateRoomModal 
+            podcastTitle={podcastTitle} 
+            onRoomCreated={handleRoomCreated} 
+          />
         </div>
       )}
     </div>
