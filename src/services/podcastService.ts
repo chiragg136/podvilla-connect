@@ -1,5 +1,5 @@
-
 import { toast } from "sonner";
+import { getPodcastMetadata } from "@/utils/googleDriveStorage";
 
 // Define podcast interfaces
 export interface Podcast {
@@ -188,11 +188,39 @@ const mockUserLibrary: UserLibrary = {
 };
 
 class PodcastService {
-  // Get all podcasts
+  // Get all podcasts including user uploaded ones
   async getAllPodcasts(): Promise<Podcast[]> {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    return [...mockPodcasts];
+    
+    try {
+      // Get user uploaded podcasts from localStorage
+      const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+      
+      // Combine mock podcasts with user uploaded podcasts
+      const allPodcasts = [...mockPodcasts];
+      
+      // Add user-uploaded podcasts if they're not already in the list
+      for (const localPodcast of localPodcasts) {
+        if (!allPodcasts.some(p => p.id === localPodcast.id)) {
+          // Format the local podcast to match the Podcast interface
+          allPodcasts.push({
+            id: localPodcast.id,
+            title: localPodcast.title,
+            creator: localPodcast.creator || 'You',
+            coverImage: localPodcast.coverImage,
+            description: localPodcast.description,
+            categories: [localPodcast.category],
+            totalEpisodes: localPodcast.episodes?.length || 0
+          });
+        }
+      }
+      
+      return allPodcasts;
+    } catch (error) {
+      console.error('Error loading all podcasts:', error);
+      return [...mockPodcasts];
+    }
   }
 
   // Get featured podcasts
@@ -206,15 +234,67 @@ class PodcastService {
   async getPodcastById(id: string): Promise<Podcast | null> {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Check mock podcasts first
     const podcast = mockPodcasts.find(p => p.id === id);
-    return podcast || null;
+    if (podcast) return podcast;
+    
+    // If not found in mocks, check localStorage
+    try {
+      const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+      const localPodcast = localPodcasts.find((p: any) => p.id === id);
+      
+      if (localPodcast) {
+        // Format the local podcast to match the Podcast interface
+        return {
+          id: localPodcast.id,
+          title: localPodcast.title,
+          creator: localPodcast.creator || 'You',
+          coverImage: localPodcast.coverImage,
+          description: localPodcast.description,
+          categories: [localPodcast.category],
+          totalEpisodes: localPodcast.episodes?.length || 0
+        };
+      }
+    } catch (error) {
+      console.error('Error loading podcast from localStorage:', error);
+    }
+    
+    return null;
   }
 
   // Get episodes by podcast ID
   async getEpisodesByPodcastId(podcastId: string): Promise<Episode[]> {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 400));
-    return mockEpisodes[podcastId] || [];
+    
+    // Check mock episodes first
+    if (mockEpisodes[podcastId]) return mockEpisodes[podcastId];
+    
+    // If not found in mocks, check localStorage
+    try {
+      const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+      const localPodcast = localPodcasts.find((p: any) => p.id === podcastId);
+      
+      if (localPodcast && localPodcast.episodes) {
+        // Format episodes to match the Episode interface
+        return localPodcast.episodes.map((ep: any) => ({
+          id: ep.id,
+          podcastId: localPodcast.id,
+          title: ep.title,
+          description: ep.description,
+          audioUrl: ep.audioUrl,
+          audioFileId: ep.audioFileId,
+          duration: typeof ep.duration === 'string' ? parseInt(ep.duration) : ep.duration,
+          releaseDate: ep.releaseDate || new Date().toISOString(),
+          isExclusive: ep.isExclusive || false
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading episodes from localStorage:', error);
+    }
+    
+    return [];
   }
 
   // Get episode by ID
@@ -222,9 +302,36 @@ class PodcastService {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 200));
     
+    // Check mock episodes first
     for (const podcastId in mockEpisodes) {
       const episode = mockEpisodes[podcastId].find(ep => ep.id === episodeId);
       if (episode) return episode;
+    }
+    
+    // If not found in mocks, check localStorage
+    try {
+      const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+      
+      for (const podcast of localPodcasts) {
+        if (podcast.episodes) {
+          const episode = podcast.episodes.find((ep: any) => ep.id === episodeId);
+          if (episode) {
+            return {
+              id: episode.id,
+              podcastId: podcast.id,
+              title: episode.title,
+              description: episode.description,
+              audioUrl: episode.audioUrl,
+              audioFileId: episode.audioFileId,
+              duration: typeof episode.duration === 'string' ? parseInt(episode.duration) : episode.duration,
+              releaseDate: episode.releaseDate || new Date().toISOString(),
+              isExclusive: episode.isExclusive || false
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading episode from localStorage:', error);
     }
     
     return null;

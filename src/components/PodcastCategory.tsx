@@ -1,8 +1,9 @@
+
 import { useRef, useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PodcastCard from './PodcastCard';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { podcastService, Podcast } from '@/services/podcastService';
 
 interface PodcastCategoryProps {
@@ -20,6 +21,7 @@ const PodcastCategory = ({
   category,
   onPlayPodcast 
 }: PodcastCategoryProps) => {
+  const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
@@ -53,16 +55,25 @@ const PodcastCategory = ({
       try {
         let podcastData: Podcast[] = [];
         
+        // Get all podcasts first, which includes user-uploaded podcasts
+        const allPodcasts = await podcastService.getAllPodcasts();
+        
         if (category) {
-          podcastData = await podcastService.getPodcastsByCategory(category);
+          // Filter by category if specified
+          podcastData = allPodcasts.filter(podcast => 
+            podcast.categories.some(cat => 
+              cat.toLowerCase() === category.toLowerCase()
+            )
+          );
         } else {
-          podcastData = await podcastService.getAllPodcasts();
-          podcastData = podcastData.sort(() => Math.random() - 0.5).slice(0, 6);
+          // Random selection if no category
+          podcastData = [...allPodcasts].sort(() => Math.random() - 0.5).slice(0, 6);
         }
         
         setPodcasts(podcastData);
       } catch (error) {
         console.error('Error loading podcasts:', error);
+        setPodcasts([]);
       } finally {
         setIsLoading(false);
       }
@@ -120,24 +131,36 @@ const PodcastCategory = ({
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
-          {podcasts.map((podcast, index) => (
-            <div 
-              key={podcast.id}
-              className={`transform transition-all duration-500 ${
-                isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
-              }`}
-              style={{ transitionDelay: `${index * 100}ms` }}
-            >
-              <PodcastCard
-                id={podcast.id}
-                title={podcast.title}
-                creator={podcast.creator}
-                coverImage={podcast.coverImage}
-                duration={`${podcast.totalEpisodes} episodes`}
-                onPlay={() => handlePlay(podcast.id)}
-              />
+          {podcasts.length > 0 ? (
+            podcasts.map((podcast, index) => (
+              <div 
+                key={podcast.id}
+                className={`transform transition-all duration-500 ${
+                  isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+                }`}
+                style={{ transitionDelay: `${index * 100}ms` }}
+              >
+                <PodcastCard
+                  id={podcast.id}
+                  title={podcast.title}
+                  creator={podcast.creator}
+                  coverImage={podcast.coverImage}
+                  duration={`${podcast.totalEpisodes} episodes`}
+                  onPlay={() => handlePlay(podcast.id)}
+                />
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-8">
+              <p className="text-primary-600">No podcasts found in this category</p>
+              <Button 
+                className="mt-4"
+                onClick={() => navigate('/upload')}
+              >
+                Upload a Podcast
+              </Button>
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>

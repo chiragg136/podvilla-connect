@@ -20,11 +20,39 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
     const fetchPodcasts = async () => {
       setIsLoading(true);
       try {
-        // Get all podcasts and take the first 4 as trending
+        // Get all podcasts
         const allPodcasts = await podcastService.getAllPodcasts();
-        setPodcasts(allPodcasts.slice(0, 4));
+        
+        // Check if we have user-uploaded podcasts in localStorage
+        const userPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+        
+        if (userPodcasts.length > 0) {
+          // If user has uploaded podcasts, show those first
+          const formattedUserPodcasts = userPodcasts.map((podcast: any) => ({
+            id: podcast.id,
+            title: podcast.title,
+            creator: podcast.creator || 'You',
+            coverImage: podcast.coverImage,
+            description: podcast.description,
+            categories: [podcast.category],
+            totalEpisodes: podcast.episodes?.length || 0
+          }));
+          
+          // Combine user podcasts with mock podcasts but prioritize user podcasts
+          const combinedPodcasts = [
+            ...formattedUserPodcasts.slice(0, 2),
+            ...allPodcasts.filter(p => !formattedUserPodcasts.some((up: any) => up.id === p.id))
+          ].slice(0, 4);
+          
+          setPodcasts(combinedPodcasts);
+        } else {
+          // If no user podcasts, just show the first 4 mock podcasts
+          setPodcasts(allPodcasts.slice(0, 4));
+        }
       } catch (error) {
         console.error('Error fetching trending podcasts:', error);
+        // Fallback to empty array if error
+        setPodcasts([]);
       } finally {
         setIsLoading(false);
       }
@@ -65,17 +93,29 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {podcasts.map((podcast) => (
-              <PodcastCard
-                key={podcast.id}
-                id={podcast.id}
-                title={podcast.title}
-                creator={podcast.creator}
-                coverImage={podcast.coverImage}
-                duration={`${podcast.totalEpisodes} episodes`}
-                onPlay={() => onPlayPodcast(podcast.id)}
-              />
-            ))}
+            {podcasts.length > 0 ? (
+              podcasts.map((podcast) => (
+                <PodcastCard
+                  key={podcast.id}
+                  id={podcast.id}
+                  title={podcast.title}
+                  creator={podcast.creator}
+                  coverImage={podcast.coverImage}
+                  duration={`${podcast.totalEpisodes} episodes`}
+                  onPlay={() => onPlayPodcast(podcast.id)}
+                />
+              ))
+            ) : (
+              <div className="col-span-4 text-center py-8">
+                <p className="text-primary-600">No podcasts available. Upload your first podcast!</p>
+                <Button 
+                  className="mt-4"
+                  onClick={() => navigate('/upload')}
+                >
+                  Upload Podcast
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
