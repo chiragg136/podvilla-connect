@@ -112,11 +112,8 @@ const PodcastRoom = ({ podcastId, podcastTitle }: PodcastRoomProps) => {
       return;
     }
     
-    // Simulate joining room
-    toast.success(`Joined room: ${roomName}`);
-    
-    // In a real app, this would navigate to the room or open a modal
-    console.log(`Joined room with ID: ${roomId}`);
+    // Navigate to the room page
+    navigate(`/rooms/${roomId}`);
   };
   
   const formatDate = (date: Date) => {
