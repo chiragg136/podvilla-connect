@@ -13,11 +13,13 @@ const GOOGLE_DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3';
 
 /**
  * Get the direct download link for a Google Drive file
+ * This creates a direct download URL that can be used in audio/video players
  * @param fileId Google Drive file ID
  * @returns Direct download URL
  */
 export const getGoogleDriveDownloadLink = (fileId: string): string => {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  // Use the direct streaming URL format
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 };
 
 /**
@@ -36,12 +38,22 @@ export const getGoogleDriveViewLink = (fileId: string): string => {
  */
 export const getFilesFromGoogleDrive = async () => {
   try {
-    // For now, we're returning a stub implementation since we don't have API access
-    // In production, this would make an authenticated API call to Google Drive
     console.log('Getting files from Google Drive folder:', GOOGLE_DRIVE_FOLDER_ID);
     
-    // Return an empty array for now - in a real implementation this would fetch actual files
-    return [];
+    // For a real implementation, we would use the Google Drive API
+    // For demo purposes, we'll use a hardcoded list of files from the shared folder
+    const mockFiles = [
+      {
+        id: '1sample-audio-file',
+        name: 'Sample Podcast Episode',
+        mimeType: 'audio/mp3',
+        downloadUrl: getGoogleDriveDownloadLink('1sample-audio-file'),
+        viewUrl: getGoogleDriveViewLink('1sample-audio-file')
+      }
+    ];
+    
+    // In production, this would fetch the actual files from Google Drive
+    return mockFiles;
   } catch (error) {
     console.error('Error fetching files from Google Drive:', error);
     throw error;
@@ -55,7 +67,7 @@ export const getFilesFromGoogleDrive = async () => {
  */
 export const generateGoogleDrivePublicUrl = (fileName: string) => {
   // In a real implementation, this would generate a valid Google Drive URL
-  // For demo purposes, we're creating a placeholder URL
+  // For demo purposes, we're creating a placeholder URL with a timestamp to make it unique
   const demoFileId = `demo-${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
   
   return {
@@ -96,17 +108,31 @@ export const uploadToGoogleDrive = async (
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Generate a demo file ID and URL
-    const { fileId, publicUrl } = generateGoogleDrivePublicUrl(file.name);
+    // Generate a demo file ID that mimics a real Google Drive file ID
+    const demoFileId = `demo-${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
+    
+    // Create a working direct download link
+    const publicUrl = getGoogleDriveDownloadLink(demoFileId);
     
     clearInterval(progressInterval);
     if (onProgress) onProgress(100);
     
-    console.log(`Upload complete. File ID: ${fileId}`);
+    console.log(`Upload complete. File ID: ${demoFileId}`);
+    
+    // Save info to localStorage to simulate persistence
+    const storedFiles = JSON.parse(localStorage.getItem('googleDriveFiles') || '[]');
+    storedFiles.push({
+      id: demoFileId,
+      name: file.name,
+      type: file.type,
+      url: publicUrl,
+      uploadDate: new Date().toISOString()
+    });
+    localStorage.setItem('googleDriveFiles', JSON.stringify(storedFiles));
     
     return {
       success: true,
-      fileId,
+      fileId: demoFileId,
       url: publicUrl
     };
   } catch (error) {
@@ -131,10 +157,59 @@ export const storePodcastMetadata = async (metadata: any) => {
     console.log('Storing podcast metadata in Google Drive:', metadata);
     
     // In a real implementation, this would create a JSON file in Google Drive
+    // For now, we'll store it in localStorage for demo purposes
+    const storedPodcasts = JSON.parse(localStorage.getItem('podcastMetadata') || '[]');
+    storedPodcasts.push(metadata);
+    localStorage.setItem('podcastMetadata', JSON.stringify(storedPodcasts));
+    
     return { success: true };
   } catch (error) {
     console.error('Error storing podcast metadata:', error);
     return { success: false, error };
+  }
+};
+
+/**
+ * Get podcast metadata from storage
+ * 
+ * @returns Array of podcast metadata objects
+ */
+export const getPodcastMetadata = async () => {
+  try {
+    // In a real implementation, this would fetch JSON files from Google Drive
+    // For now, we'll retrieve from localStorage
+    const storedPodcasts = JSON.parse(localStorage.getItem('podcastMetadata') || '[]');
+    return storedPodcasts;
+  } catch (error) {
+    console.error('Error retrieving podcast metadata:', error);
+    return [];
+  }
+};
+
+/**
+ * Function to get a file by ID
+ * @param fileId File ID to retrieve
+ * @returns File object if found, null otherwise
+ */
+export const getFileById = async (fileId: string) => {
+  try {
+    // In a real implementation, this would make an API call to Google Drive
+    // For now, we'll check localStorage
+    const storedFiles = JSON.parse(localStorage.getItem('googleDriveFiles') || '[]');
+    const file = storedFiles.find((f: any) => f.id === fileId);
+    
+    if (file) {
+      return {
+        ...file,
+        downloadUrl: getGoogleDriveDownloadLink(fileId),
+        viewUrl: getGoogleDriveViewLink(fileId)
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error retrieving file by ID:', error);
+    return null;
   }
 };
 
@@ -143,5 +218,7 @@ export default {
   getFilesFromGoogleDrive,
   getGoogleDriveDownloadLink,
   getGoogleDriveViewLink,
-  storePodcastMetadata
+  storePodcastMetadata,
+  getPodcastMetadata,
+  getFileById
 };

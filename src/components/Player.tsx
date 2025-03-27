@@ -1,15 +1,16 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
+import { getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
 
 interface PlayerProps {
   isVisible?: boolean;
   podcastId?: string | null;
   episodeId?: string;
   isPlaying?: boolean;
+  audioUrl?: string;
 }
 
 // Mock podcast data
@@ -60,13 +61,19 @@ const podcastData = {
 
 // Mock episode data
 const episodeData: Record<string, any> = {
-  'ep1': { title: 'Introduction to Tech', duration: 240 },
-  'ep2': { title: 'Advanced Programming', duration: 300 },
-  'ep3': { title: 'Web Development Basics', duration: 180 },
-  'ep4': { title: 'AI and Machine Learning', duration: 420 },
+  'ep1': { title: 'Introduction to Tech', duration: 240, audioUrl: 'https://example.com/audio1.mp3' },
+  'ep2': { title: 'Advanced Programming', duration: 300, audioUrl: 'https://example.com/audio2.mp3' },
+  'ep3': { title: 'Web Development Basics', duration: 180, audioUrl: 'https://example.com/audio3.mp3' },
+  'ep4': { title: 'AI and Machine Learning', duration: 420, audioUrl: 'https://example.com/audio4.mp3' },
 };
 
-const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlayState = false }: PlayerProps) => {
+const Player = ({ 
+  isVisible = true, 
+  podcastId, 
+  episodeId, 
+  isPlaying: initialPlayState = false,
+  audioUrl: propAudioUrl
+}: PlayerProps) => {
   const { toast } = useToast();
   const [isPlaying, setIsPlaying] = useState(initialPlayState);
   const [progress, setProgress] = useState(0);
@@ -76,6 +83,106 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
   const [showPlayer, setShowPlayer] = useState(false);
   const [currentPodcast, setCurrentPodcast] = useState<string | null>(null);
   const [totalDuration, setTotalDuration] = useState(240);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioSource, setAudioSource] = useState<string | null>(null);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Create audio element
+  useEffect(() => {
+    audioRef.current = new Audio();
+    
+    audioRef.current.addEventListener('timeupdate', () => {
+      if (audioRef.current) {
+        setCurrentTime(audioRef.current.currentTime);
+        if (audioRef.current.duration) {
+          setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+        }
+      }
+    });
+    
+    audioRef.current.addEventListener('loadedmetadata', () => {
+      if (audioRef.current && audioRef.current.duration) {
+        setTotalDuration(audioRef.current.duration);
+      }
+    });
+    
+    audioRef.current.addEventListener('ended', () => {
+      setIsPlaying(false);
+      setProgress(0);
+      setCurrentTime(0);
+    });
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.remove();
+      }
+    };
+  }, []);
+
+  // Set audio source
+  useEffect(() => {
+    // Check if we have a direct audio URL from props
+    if (propAudioUrl) {
+      setAudioSource(propAudioUrl);
+      return;
+    }
+    
+    // Otherwise try to get it from episode data
+    if (episodeId && episodeData[episodeId]) {
+      const audioSrc = episodeData[episodeId].audioUrl;
+      setAudioSource(audioSrc);
+      return;
+    }
+    
+    // If we only have a podcast ID, set a dummy source
+    if (podcastId) {
+      const dummySource = `https://example.com/podcast/${podcastId}/audio.mp3`;
+      setAudioSource(dummySource);
+    }
+  }, [podcastId, episodeId, propAudioUrl]);
+
+  // Update audio element when source changes
+  useEffect(() => {
+    if (audioRef.current && audioSource) {
+      audioRef.current.src = audioSource;
+      audioRef.current.load();
+      
+      if (isPlaying) {
+        audioRef.current.play().catch(error => {
+          console.error('Failed to play audio:', error);
+          toast({
+            title: "Playback Error",
+            description: "Could not play this audio. The file may not be accessible.",
+          });
+          setIsPlaying(false);
+        });
+      }
+    }
+  }, [audioSource, toast]);
+
+  // Update volume
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume / 100;
+    }
+  }, [volume, isMuted]);
+
+  // Handle play/pause
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.play().catch(error => {
+          console.error('Failed to play audio:', error);
+          setIsPlaying(false);
+        });
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
 
   useEffect(() => {
     if (podcastId && podcastData[podcastId as keyof typeof podcastData]) {
@@ -83,6 +190,9 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
       setShowPlayer(true);
       setIsPlaying(initialPlayState);
       setProgress(0);
+      setCurrentTime(0);
+      
+      // Get total duration from podcast data as a fallback
       setTotalDuration(podcastData[podcastId as keyof typeof podcastData].duration);
       
       toast({
@@ -95,26 +205,6 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
   useEffect(() => {
     setIsPlaying(initialPlayState);
   }, [initialPlayState]);
-
-  useEffect(() => {
-    let interval: number | null = null;
-    
-    if (isPlaying) {
-      interval = window.setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 0.5;
-        });
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPlaying]);
 
   useEffect(() => {
     setShowPlayer(isVisible);
@@ -148,10 +238,44 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
   };
 
   const handleShare = () => {
-    toast({
-      title: "Share",
-      description: "Sharing options coming soon!",
-    });
+    if (navigator.share) {
+      navigator.share({
+        title: "Check out this podcast!",
+        url: window.location.href
+      }).catch(err => {
+        console.error("Share failed:", err);
+        copyToClipboard();
+      });
+    } else {
+      copyToClipboard();
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => {
+        toast({
+          title: "Link copied",
+          description: "Podcast link copied to clipboard",
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Failed to copy",
+          description: "Could not copy link to clipboard",
+        });
+      });
+  };
+
+  const handleProgressChange = (value: number[]) => {
+    const newProgress = value[0];
+    setProgress(newProgress);
+    
+    if (audioRef.current && audioRef.current.duration) {
+      const newTime = (newProgress / 100) * audioRef.current.duration;
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -159,8 +283,6 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
-
-  const currentTime = (progress / 100) * totalDuration;
 
   if (!showPlayer || !currentPodcast) return null;
 
@@ -240,7 +362,7 @@ const Player = ({ isVisible = true, podcastId, episodeId, isPlaying: initialPlay
                 min={0}
                 max={100}
                 step={0.01}
-                onValueChange={(value) => setProgress(value[0])}
+                onValueChange={handleProgressChange}
                 className="flex-1"
               />
               <span className="text-xs text-primary-500 w-8">

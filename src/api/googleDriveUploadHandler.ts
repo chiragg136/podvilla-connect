@@ -1,5 +1,5 @@
 
-import { uploadToGoogleDrive, storePodcastMetadata } from '@/utils/googleDriveStorage';
+import { uploadToGoogleDrive, storePodcastMetadata, getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
 
 /**
  * Handle podcast upload to Google Drive
@@ -49,6 +49,7 @@ export const handleGoogleDrivePodcastUpload = async (
 
     // Create podcast metadata
     const podcastId = `podcast-${Date.now()}`;
+    const episodeId = `episode-${Date.now()}`;
     const timestamp = new Date();
     
     const podcastMetadata = {
@@ -63,12 +64,12 @@ export const handleGoogleDrivePodcastUpload = async (
       updatedAt: timestamp.toISOString(),
       episodes: [
         {
-          id: `episode-${Date.now()}`,
+          id: episodeId,
           title: episodeTitle,
           description: episodeDescription || description,
           audioUrl: audioResult.url,
           audioFileId: audioResult.fileId,
-          duration: "00:00:00", // Would be calculated in a real implementation
+          duration: "300", // 5 minutes as a default
           createdAt: timestamp.toISOString()
         }
       ]
@@ -77,8 +78,7 @@ export const handleGoogleDrivePodcastUpload = async (
     // Store metadata in Google Drive
     await storePodcastMetadata(podcastMetadata);
 
-    // In a real implementation, you would also update a database or index file
-    // For now, let's store it in localStorage for demo purposes
+    // Save to localStorage for persistence in demo app
     const existingPodcasts = localStorage.getItem('podcasts');
     let podcasts = [];
     
@@ -92,12 +92,34 @@ export const handleGoogleDrivePodcastUpload = async (
       description,
       category,
       coverImage: coverImageResult.url,
+      coverImageFileId: coverImageResult.fileId,
       creator: "You",
       totalEpisodes: 1,
-      createdAt: timestamp.toISOString()
+      createdAt: timestamp.toISOString(),
+      episodes: [
+        {
+          id: episodeId,
+          title: episodeTitle,
+          description: episodeDescription || description,
+          audioUrl: audioResult.url,
+          audioFileId: audioResult.fileId,
+          duration: 300, // 5 minutes as default
+          releaseDate: timestamp.toISOString(),
+          isExclusive: false
+        }
+      ]
     });
     
     localStorage.setItem('podcasts', JSON.stringify(podcasts));
+    
+    // Log for debugging
+    console.log("Uploaded podcast metadata:", {
+      podcastId,
+      audioUrl: audioResult.url,
+      audioFileId: audioResult.fileId,
+      coverImageUrl: coverImageResult.url,
+      coverImageFileId: coverImageResult.fileId
+    });
 
     if (onProgress) onProgress(100);
 

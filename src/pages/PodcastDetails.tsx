@@ -16,6 +16,7 @@ import { useUser } from '@/contexts/UserContext';
 import Player from '@/components/Player';
 import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
+import { getGoogleDriveDownloadLink, getPodcastMetadata, getFileById } from '@/utils/googleDriveStorage';
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ const PodcastDetails = () => {
   const [isFavorite, setIsFavorite] = useState(false);
   const { isAuthenticated } = useUser();
   const [activeTab, setActiveTab] = useState('episodes');
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchPodcastDetails = async () => {
@@ -34,7 +36,9 @@ const PodcastDetails = () => {
       
       setIsLoading(true);
       try {
+        // First try to get podcast from standard service
         const podcastData = await podcastService.getPodcastById(id);
+        
         if (podcastData) {
           setPodcast(podcastData);
           
@@ -48,7 +52,43 @@ const PodcastDetails = () => {
             setIsFavorite(favoriteStatus);
           }
         } else {
-          toast.error('Podcast not found');
+          // If not found in standard service, check Google Drive storage
+          const googleDrivePodcasts = await getPodcastMetadata();
+          const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
+          
+          if (googleDrivePodcast) {
+            const formattedPodcast: Podcast = {
+              id: googleDrivePodcast.id,
+              title: googleDrivePodcast.title,
+              description: googleDrivePodcast.description,
+              creator: googleDrivePodcast.userId || 'Unknown Creator',
+              coverImage: googleDrivePodcast.coverImage,
+              categories: [googleDrivePodcast.category],
+              totalEpisodes: googleDrivePodcast.episodes?.length || 0
+            };
+            
+            setPodcast(formattedPodcast);
+            
+            // Format episodes
+            if (googleDrivePodcast.episodes && googleDrivePodcast.episodes.length > 0) {
+              const formattedEpisodes = googleDrivePodcast.episodes.map((ep: any) => ({
+                id: ep.id,
+                podcastId: googleDrivePodcast.id,
+                title: ep.title,
+                description: ep.description,
+                audioUrl: ep.audioUrl,
+                audioFileId: ep.audioFileId,
+                duration: ep.duration ? parseInt(ep.duration) : 300, // Default to 5 minutes if duration not available
+                releaseDate: ep.createdAt,
+                isExclusive: false
+              }));
+              
+              setEpisodes(formattedEpisodes);
+            }
+          } else {
+            // If not found anywhere
+            toast.error('Podcast not found');
+          }
         }
       } catch (error) {
         console.error('Error fetching podcast details:', error);
@@ -73,11 +113,29 @@ const PodcastDetails = () => {
     }
   };
 
-  const handlePlayEpisode = (episode: Episode) => {
+  const handlePlayEpisode = async (episode: Episode) => {
+    // For episodes with direct Google Drive links
+    if (episode.audioFileId) {
+      // Get or create a direct streaming URL
+      const directUrl = getGoogleDriveDownloadLink(episode.audioFileId);
+      setCurrentAudioUrl(directUrl);
+      
+      if (currentEpisode && currentEpisode.id === episode.id) {
+        setIsPlaying(!isPlaying);
+      } else {
+        setCurrentEpisode(episode);
+        setIsPlaying(true);
+      }
+      
+      return;
+    }
+    
+    // For regular episodes
     if (currentEpisode && currentEpisode.id === episode.id) {
       setIsPlaying(!isPlaying);
     } else {
       setCurrentEpisode(episode);
+      setCurrentAudioUrl(episode.audioUrl);
       setIsPlaying(true);
     }
   };
@@ -89,6 +147,22 @@ const PodcastDetails = () => {
     }
     
     try {
+      let downloadUrl = episode.audioUrl;
+      
+      // If this is a Google Drive file, get the direct download link
+      if (episode.audioFileId) {
+        downloadUrl = getGoogleDriveDownloadLink(episode.audioFileId);
+      }
+      
+      // Create a temporary anchor element to trigger the download
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${episode.title}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Record the download
       await podcastService.addDownload(episode.id);
       toast.success('Episode downloaded for offline listening');
     } catch (error) {
@@ -98,6 +172,21 @@ const PodcastDetails = () => {
   };
 
   const shareEpisode = (episode: Episode) => {
+    if (navigator.share) {
+      navigator.share({
+        title: episode.title,
+        text: episode.description,
+        url: window.location.href + '?episode=' + episode.id
+      }).catch(err => {
+        console.error("Share failed:", err);
+        copyToClipboard(episode);
+      });
+    } else {
+      copyToClipboard(episode);
+    }
+  };
+  
+  const copyToClipboard = (episode: Episode) => {
     navigator.clipboard.writeText(window.location.href + '?episode=' + episode.id)
       .then(() => {
         toast.success('Link copied to clipboard');
@@ -196,7 +285,7 @@ const PodcastDetails = () => {
             
             <div className="flex flex-wrap gap-3 mb-6">
               <Button 
-                onClick={() => handlePlayEpisode(episodes[0])}
+                onClick={() => episodes.length > 0 && handlePlayEpisode(episodes[0])}
                 disabled={episodes.length === 0}
                 className="bg-accent-purple hover:bg-accent-purple-dark"
               >
@@ -312,7 +401,12 @@ const PodcastDetails = () => {
       </main>
       
       <AppFooter />
-      {currentEpisode && <Player podcastId={id || ''} episodeId={currentEpisode.id} isPlaying={isPlaying} />}
+      {currentEpisode && <Player 
+        podcastId={id || ''} 
+        episodeId={currentEpisode.id} 
+        isPlaying={isPlaying} 
+        audioUrl={currentAudioUrl}
+      />}
     </div>
   );
 };
