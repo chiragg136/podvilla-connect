@@ -11,8 +11,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
-// Import the Google Drive upload handler instead of the regular one
+// Import both upload handlers
 import { handleGoogleDrivePodcastUpload } from '@/api/googleDriveUploadHandler';
+import { handlePodcastUpload } from '@/api/podcastUploadHandler';
 
 const PodcastUpload = () => {
   const navigate = useNavigate();
