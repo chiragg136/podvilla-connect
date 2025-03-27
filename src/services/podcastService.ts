@@ -19,6 +19,7 @@ export interface Episode {
   title: string;
   description: string;
   audioUrl: string;
+  audioFileId?: string; // Adding audioFileId as optional property
   duration: number; // in seconds
   releaseDate: string;
   isExclusive: boolean;
