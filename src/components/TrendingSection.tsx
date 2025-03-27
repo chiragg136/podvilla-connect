@@ -33,6 +33,8 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
             title: podcast.title,
             creator: podcast.creator || 'You',
             coverImage: podcast.coverImage,
+            coverImageCid: podcast.coverImageCid, // Add for IPFS
+            ipfsCid: podcast.ipfsCid, // Add for IPFS
             description: podcast.description,
             categories: [podcast.category],
             totalEpisodes: podcast.episodes?.length || 0

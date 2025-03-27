@@ -1,4 +1,3 @@
-
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,8 +10,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
-// Import both upload handlers
-import { handleGoogleDrivePodcastUpload } from '@/api/googleDriveUploadHandler';
+import { handleIpfsPodcastUpload } from '@/api/ipfsUploadHandler';
 import { handlePodcastUpload } from '@/api/podcastUploadHandler';
 
 const PodcastUpload = () => {
@@ -28,9 +26,8 @@ const PodcastUpload = () => {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeDescription, setEpisodeDescription] = useState('');
-  const [isGoogleDriveEnabled] = useState(true);
+  const [isIpfsEnabled] = useState(true);
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -89,7 +86,6 @@ const PodcastUpload = () => {
     setUploadProgress(0);
 
     try {
-      // Create FormData object for file upload
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
@@ -101,16 +97,14 @@ const PodcastUpload = () => {
 
       let result;
       
-      // Use Google Drive upload handler
-      if (isGoogleDriveEnabled) {
-        toast.info('Uploading to Google Drive storage...');
-        result = await handleGoogleDrivePodcastUpload(
+      if (isIpfsEnabled) {
+        toast.info('Uploading to IPFS decentralized storage...');
+        result = await handleIpfsPodcastUpload(
           formData, 
           user.id,
           (progress) => setUploadProgress(progress)
         );
       } else {
-        // Fallback to regular upload handler
         result = await handlePodcastUpload(
           formData, 
           user.id,
@@ -119,10 +113,9 @@ const PodcastUpload = () => {
       }
 
       if (result.success) {
-        const storageType = isGoogleDriveEnabled ? 'Google Drive' : 'regular storage';
+        const storageType = isIpfsEnabled ? 'IPFS decentralized storage' : 'regular storage';
         toast.success(`Upload complete! Your podcast has been successfully uploaded to ${storageType}.`);
         
-        // Reset form
         setTitle('');
         setDescription('');
         setCategory('Technology');
@@ -132,7 +125,6 @@ const PodcastUpload = () => {
         setEpisodeTitle('');
         setEpisodeDescription('');
         
-        // Navigate to profile page
         navigate('/profile');
       } else {
         toast.error(result.error || 'An error occurred while uploading your podcast.');
@@ -147,7 +139,7 @@ const PodcastUpload = () => {
   };
 
   if (!isAuthenticated) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
   return (
@@ -159,10 +151,10 @@ const PodcastUpload = () => {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-primary-900">Upload Your Podcast</h1>
             <p className="mt-2 text-lg text-primary-600">Share your voice with the world</p>
-            {isGoogleDriveEnabled && (
+            {isIpfsEnabled && (
               <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-primary-100 text-primary-800 text-sm">
                 <File className="h-4 w-4 mr-1" />
-                Using Google Drive Storage
+                Using IPFS Decentralized Storage
               </div>
             )}
           </div>

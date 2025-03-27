@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { getPodcastMetadata } from "@/utils/googleDriveStorage";
+import { getPodcastMetadataFromIpfs } from "@/utils/ipfsStorage";
 
 // Define podcast interfaces
 export interface Podcast {
@@ -7,6 +7,8 @@ export interface Podcast {
   title: string;
   creator: string;
   coverImage: string;
+  coverImageCid?: string; // Added for IPFS
+  ipfsCid?: string; // Added for IPFS
   description: string;
   categories: string[];
   totalEpisodes: number;
@@ -19,7 +21,8 @@ export interface Episode {
   title: string;
   description: string;
   audioUrl: string;
-  audioFileId?: string; // Adding audioFileId as optional property
+  audioCid?: string; // Added for IPFS
+  audioFileId?: string; // Keeping for backward compatibility
   duration: number; // in seconds
   releaseDate: string;
   isExclusive: boolean;
@@ -32,6 +35,8 @@ const mockPodcasts: Podcast[] = [
     title: 'The Daily Tech',
     creator: 'Tech Insights',
     coverImage: 'https://images.unsplash.com/photo-1589903308904-1010c2294adc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-featured-podcast',
+    ipfsCid: 'cid-featured-podcast-ipfs',
     description: 'Daily insights into the tech world, covering the latest news, trends, and innovations that are shaping our digital future.',
     categories: ['Technology', 'News'],
     totalEpisodes: 156,
@@ -42,6 +47,8 @@ const mockPodcasts: Podcast[] = [
     title: 'Design Matters with Anna',
     creator: 'Anna Roberts',
     coverImage: 'https://images.unsplash.com/photo-1599689018356-f4bae9bf4bc3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-design-matters',
+    ipfsCid: 'cid-design-matters-ipfs',
     description: 'Conversations with the world\'s top designers about creative process, inspiration, and the intersection of design and life.',
     categories: ['Design', 'Arts', 'Business'],
     totalEpisodes: 89
@@ -51,6 +58,8 @@ const mockPodcasts: Podcast[] = [
     title: 'Tech Today',
     creator: 'James Wilson',
     coverImage: 'https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-tech-today',
+    ipfsCid: 'cid-tech-today-ipfs',
     description: 'Breaking down the latest technology trends and how they impact our daily lives and future society.',
     categories: ['Technology', 'Science'],
     totalEpisodes: 112
@@ -60,6 +69,8 @@ const mockPodcasts: Podcast[] = [
     title: 'The Future of AI',
     creator: 'Emily Chen',
     coverImage: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-future-ai',
+    ipfsCid: 'cid-future-ai-ipfs',
     description: 'Exploring artificial intelligence advancements and their implications for humanity, ethics, and the workplace.',
     categories: ['Technology', 'Science', 'Education'],
     totalEpisodes: 45
@@ -69,6 +80,8 @@ const mockPodcasts: Podcast[] = [
     title: 'Mindful Moments',
     creator: 'Sarah Johnson',
     coverImage: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-mindful-moments',
+    ipfsCid: 'cid-mindful-moments-ipfs',
     description: 'Guided meditations and mindfulness practices to help you stay present, reduce stress, and cultivate inner peace.',
     categories: ['Health', 'Education'],
     totalEpisodes: 78
@@ -78,6 +91,8 @@ const mockPodcasts: Podcast[] = [
     title: 'Global Economics',
     creator: 'Michael Brown',
     coverImage: 'https://images.unsplash.com/photo-1589903308904-1010c2294adc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-global-economics',
+    ipfsCid: 'cid-global-economics-ipfs',
     description: 'Analyzing global economic trends, market movements, and financial strategies for today\'s complex economic landscape.',
     categories: ['Business', 'News', 'Education'],
     totalEpisodes: 67
@@ -87,6 +102,8 @@ const mockPodcasts: Podcast[] = [
     title: 'Creative Writing',
     creator: 'Lisa Morgan',
     coverImage: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4bc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    coverImageCid: 'cid-creative-writing',
+    ipfsCid: 'cid-creative-writing-ipfs',
     description: 'Practical tips and inspiration for aspiring writers, from novel writing to storytelling techniques and publishing advice.',
     categories: ['Arts', 'Education'],
     totalEpisodes: 92
@@ -102,6 +119,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'The Rise of AI in Everyday Tech',
       description: 'Exploring how artificial intelligence is changing the way we interact with technology in our daily lives.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-featured-ep1',
       duration: 1860, // 31 minutes
       releaseDate: '2023-08-15',
       isExclusive: false
@@ -112,6 +130,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'Web3 and the Future of the Internet',
       description: 'A deep dive into how blockchain technology is reshaping the internet as we know it.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-featured-ep2',
       duration: 2220, // 37 minutes
       releaseDate: '2023-08-08',
       isExclusive: false
@@ -122,6 +141,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'The Metaverse: Beyond Gaming',
       description: 'How the metaverse is expanding beyond gaming into work, education, and social interaction.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-featured-ep3',
       duration: 1980, // 33 minutes
       releaseDate: '2023-08-01',
       isExclusive: true
@@ -134,6 +154,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'The Psychology of Design',
       description: 'How design influences human behavior and decision-making in subtle ways.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-1-ep1',
       duration: 2700, // 45 minutes
       releaseDate: '2023-08-14',
       isExclusive: false
@@ -144,6 +165,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'Minimalism in Product Design',
       description: 'Exploring the principles of minimalist design and its impact on user experience.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-1-ep2',
       duration: 2400, // 40 minutes
       releaseDate: '2023-08-07',
       isExclusive: false
@@ -156,6 +178,7 @@ const mockEpisodes: Record<string, Episode[]> = {
       title: 'The Future of Electric Vehicles',
       description: 'How electric vehicles are reshaping transportation and environmental impact.',
       audioUrl: 'https://example.com/audio-file.mp3',
+      audioCid: 'cid-2-ep1',
       duration: 1920, // 32 minutes
       releaseDate: '2023-08-16',
       isExclusive: false
@@ -209,6 +232,8 @@ class PodcastService {
             title: localPodcast.title,
             creator: localPodcast.creator || 'You',
             coverImage: localPodcast.coverImage,
+            coverImageCid: localPodcast.coverImageCid,
+            ipfsCid: localPodcast.ipfsCid,
             description: localPodcast.description,
             categories: [localPodcast.category],
             totalEpisodes: localPodcast.episodes?.length || 0
@@ -251,6 +276,8 @@ class PodcastService {
           title: localPodcast.title,
           creator: localPodcast.creator || 'You',
           coverImage: localPodcast.coverImage,
+          coverImageCid: localPodcast.coverImageCid,
+          ipfsCid: localPodcast.ipfsCid,
           description: localPodcast.description,
           categories: [localPodcast.category],
           totalEpisodes: localPodcast.episodes?.length || 0
@@ -284,6 +311,7 @@ class PodcastService {
           title: ep.title,
           description: ep.description,
           audioUrl: ep.audioUrl,
+          audioCid: ep.audioCid,
           audioFileId: ep.audioFileId,
           duration: typeof ep.duration === 'string' ? parseInt(ep.duration) : ep.duration,
           releaseDate: ep.releaseDate || new Date().toISOString(),
@@ -322,6 +350,7 @@ class PodcastService {
               title: episode.title,
               description: episode.description,
               audioUrl: episode.audioUrl,
+              audioCid: episode.audioCid,
               audioFileId: episode.audioFileId,
               duration: typeof episode.duration === 'string' ? parseInt(episode.duration) : episode.duration,
               releaseDate: episode.releaseDate || new Date().toISOString(),

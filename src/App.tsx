@@ -19,6 +19,11 @@ import PodcastDetails from "./pages/PodcastDetails";
 // Create a client
 const queryClient = new QueryClient();
 
+// Initialize IPFS storage preference
+if (localStorage.getItem('storagePreference') === null) {
+  localStorage.setItem('storagePreference', 'ipfs');
+}
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
