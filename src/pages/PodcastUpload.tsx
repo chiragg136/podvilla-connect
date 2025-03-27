@@ -1,3 +1,4 @@
+
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,7 +11,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
-import { handlePodcastUpload } from '@/api/podcastUploadHandler';
+// Import the Google Drive upload handler instead of the regular one
+import { handleGoogleDrivePodcastUpload } from '@/api/googleDriveUploadHandler';
 
 const PodcastUpload = () => {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ const PodcastUpload = () => {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeDescription, setEpisodeDescription] = useState('');
+  const [isGoogleDriveEnabled] = useState(true);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -95,15 +98,28 @@ const PodcastUpload = () => {
       formData.append('episodeTitle', episodeTitle);
       formData.append('episodeDescription', episodeDescription || description);
 
-      // Upload podcast
-      const result = await handlePodcastUpload(
-        formData, 
-        user.id,
-        (progress) => setUploadProgress(progress)
-      );
+      let result;
+      
+      // Use Google Drive upload handler
+      if (isGoogleDriveEnabled) {
+        toast.info('Uploading to Google Drive storage...');
+        result = await handleGoogleDrivePodcastUpload(
+          formData, 
+          user.id,
+          (progress) => setUploadProgress(progress)
+        );
+      } else {
+        // Fallback to regular upload handler
+        result = await handlePodcastUpload(
+          formData, 
+          user.id,
+          (progress) => setUploadProgress(progress)
+        );
+      }
 
       if (result.success) {
-        toast.success('Upload complete! Your podcast has been successfully uploaded.');
+        const storageType = isGoogleDriveEnabled ? 'Google Drive' : 'regular storage';
+        toast.success(`Upload complete! Your podcast has been successfully uploaded to ${storageType}.`);
         
         // Reset form
         setTitle('');
@@ -142,6 +158,12 @@ const PodcastUpload = () => {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-primary-900">Upload Your Podcast</h1>
             <p className="mt-2 text-lg text-primary-600">Share your voice with the world</p>
+            {isGoogleDriveEnabled && (
+              <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-primary-100 text-primary-800 text-sm">
+                <File className="h-4 w-4 mr-1" />
+                Using Google Drive Storage
+              </div>
+            )}
           </div>
           
           <Card>
