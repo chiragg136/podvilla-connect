@@ -25,10 +25,25 @@ export const handleGoogleDrivePodcastUpload = async (
     const episodeTitle = formData.get('episodeTitle') as string;
     const episodeDescription = formData.get('episodeDescription') as string;
 
+    // Validate files are present
+    if (!audioFile || !coverImageFile) {
+      console.error("Missing required files:", { audioFile: !!audioFile, coverImageFile: !!coverImageFile });
+      throw new Error("Missing required files. Please make sure to upload both audio and cover image files.");
+    }
+
+    // Validate audio file type
+    const validAudioTypes = ['audio/mp3', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'audio/wav', 'audio/x-m4a'];
+    if (!validAudioTypes.includes(audioFile.type) && !audioFile.name.endsWith('.mp3') && !audioFile.name.endsWith('.mp4')) {
+      console.error("Invalid audio file type:", audioFile.type);
+      throw new Error(`Invalid audio file type: ${audioFile.type}. Please upload an MP3 or MP4 file.`);
+    }
+
     console.log("Form data extracted:", { 
       title, 
       category, 
       audioFileName: audioFile.name,
+      audioFileType: audioFile.type,
+      audioFileSize: `${Math.round(audioFile.size / 1024 / 1024 * 10) / 10} MB`,
       coverImageFileName: coverImageFile.name
     });
 
@@ -67,6 +82,10 @@ export const handleGoogleDrivePodcastUpload = async (
     const episodeId = `episode-${Date.now()}`;
     const timestamp = new Date();
     
+    // Get audio duration (in a real implementation this would extract actual duration)
+    // For now we'll use a placeholder value
+    const audioDuration = "300"; // 5 minutes as a default
+    
     const podcastMetadata = {
       id: podcastId,
       userId,
@@ -84,7 +103,7 @@ export const handleGoogleDrivePodcastUpload = async (
           description: episodeDescription || description,
           audioUrl: audioResult.url,
           audioFileId: audioResult.fileId,
-          duration: "300", // 5 minutes as a default
+          duration: audioDuration,
           createdAt: timestamp.toISOString()
         }
       ]

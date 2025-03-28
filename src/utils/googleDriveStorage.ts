@@ -91,8 +91,19 @@ export const uploadToGoogleDrive = async (
   onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; fileId?: string; url?: string; error?: string }> => {
   try {
+    // Validate file exists
+    if (!file || file.size === 0) {
+      throw new Error('Invalid file: File is empty or not provided');
+    }
+
     // For demonstration purposes, we'll simulate a file upload
-    console.log(`Simulating upload of ${file.name} (${file.size} bytes) to Google Drive`);
+    console.log(`Simulating upload of ${file.name} (${file.size} bytes, type: ${file.type}) to Google Drive`);
+    
+    // Add upload size limit check
+    const maxSizeMB = 50;
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      throw new Error(`File size exceeds the ${maxSizeMB}MB limit. Please upload a smaller file.`);
+    }
     
     // Simulate upload progress
     let progress = 0;

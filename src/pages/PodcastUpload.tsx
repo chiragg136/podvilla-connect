@@ -40,10 +40,21 @@ const PodcastUpload = () => {
   const handleAudioFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.type.includes('audio')) {
+      const validAudioTypes = ['audio/mp3', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'audio/wav', 'audio/x-m4a'];
+      
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      const isValidType = validAudioTypes.includes(file.type) || 
+                          fileExtension === 'mp3' || 
+                          fileExtension === 'mp4' || 
+                          fileExtension === 'wav' || 
+                          fileExtension === 'm4a';
+      
+      if (isValidType) {
+        console.log(`Audio file selected: ${file.name}, type: ${file.type}, size: ${Math.round(file.size / 1024 / 1024 * 10) / 10} MB`);
         setSelectedAudioFile(file);
       } else {
-        toast.error('Invalid file type. Please select an audio file.');
+        console.error(`Invalid audio file type: ${file.type}`);
+        toast.error('Invalid file type. Please select an MP3, MP4, WAV or M4A audio file.');
       }
     }
   };
@@ -95,6 +106,8 @@ const PodcastUpload = () => {
 
       console.log('Uploading podcast with files:', {
         audioFile: selectedAudioFile.name,
+        audioType: selectedAudioFile.type,
+        audioSize: `${Math.round(selectedAudioFile.size / 1024 / 1024 * 10) / 10} MB`,
         coverImage: selectedCoverImage.name,
         title,
         category
