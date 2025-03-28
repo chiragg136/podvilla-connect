@@ -1,3 +1,4 @@
+
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,8 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
-import { handleIpfsPodcastUpload } from '@/api/ipfsUploadHandler';
-import { handlePodcastUpload } from '@/api/podcastUploadHandler';
+import { handleGoogleDrivePodcastUpload } from '@/api/googleDriveUploadHandler';
 
 const PodcastUpload = () => {
   const navigate = useNavigate();
@@ -26,7 +26,6 @@ const PodcastUpload = () => {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeDescription, setEpisodeDescription] = useState('');
-  const [isIpfsEnabled] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -95,26 +94,15 @@ const PodcastUpload = () => {
       formData.append('episodeTitle', episodeTitle);
       formData.append('episodeDescription', episodeDescription || description);
 
-      let result;
-      
-      if (isIpfsEnabled) {
-        toast.info('Uploading to IPFS decentralized storage...');
-        result = await handleIpfsPodcastUpload(
-          formData, 
-          user.id,
-          (progress) => setUploadProgress(progress)
-        );
-      } else {
-        result = await handlePodcastUpload(
-          formData, 
-          user.id,
-          (progress) => setUploadProgress(progress)
-        );
-      }
+      toast.info('Uploading to Google Drive storage...');
+      const result = await handleGoogleDrivePodcastUpload(
+        formData, 
+        user.id,
+        (progress) => setUploadProgress(progress)
+      );
 
       if (result.success) {
-        const storageType = isIpfsEnabled ? 'IPFS decentralized storage' : 'regular storage';
-        toast.success(`Upload complete! Your podcast has been successfully uploaded to ${storageType}.`);
+        toast.success('Upload complete! Your podcast has been successfully uploaded to Google Drive storage.');
         
         setTitle('');
         setDescription('');
@@ -151,12 +139,10 @@ const PodcastUpload = () => {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-primary-900">Upload Your Podcast</h1>
             <p className="mt-2 text-lg text-primary-600">Share your voice with the world</p>
-            {isIpfsEnabled && (
-              <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-primary-100 text-primary-800 text-sm">
-                <File className="h-4 w-4 mr-1" />
-                Using IPFS Decentralized Storage
-              </div>
-            )}
+            <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-primary-100 text-primary-800 text-sm">
+              <File className="h-4 w-4 mr-1" />
+              Using Google Drive Storage
+            </div>
           </div>
           
           <Card>

@@ -1,3 +1,4 @@
+
 import { uploadToGoogleDrive, storePodcastMetadata, getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
 
 /**
@@ -67,7 +68,7 @@ export const handleGoogleDrivePodcastUpload = async (
           title: episodeTitle,
           description: episodeDescription || description,
           audioUrl: audioResult.url,
-          audioFileId: audioResult.fileId, // This is properly set
+          audioFileId: audioResult.fileId,
           duration: "300", // 5 minutes as a default
           createdAt: timestamp.toISOString()
         }
@@ -101,7 +102,7 @@ export const handleGoogleDrivePodcastUpload = async (
           title: episodeTitle,
           description: episodeDescription || description,
           audioUrl: audioResult.url,
-          audioFileId: audioResult.fileId, // Make sure this is included
+          audioFileId: audioResult.fileId, 
           duration: 300, // 5 minutes as default
           releaseDate: timestamp.toISOString(),
           isExclusive: false

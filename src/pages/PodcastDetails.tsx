@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -35,54 +36,54 @@ const PodcastDetails = () => {
       
       setIsLoading(true);
       try {
-        // First try to get podcast from standard service
-        const podcastData = await podcastService.getPodcastById(id);
+        // First try to get podcast from Google Drive storage
+        const googleDrivePodcasts = await getPodcastMetadata();
+        const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
         
-        if (podcastData) {
-          setPodcast(podcastData);
+        if (googleDrivePodcast) {
+          const formattedPodcast: Podcast = {
+            id: googleDrivePodcast.id,
+            title: googleDrivePodcast.title,
+            description: googleDrivePodcast.description,
+            creator: googleDrivePodcast.userId || 'Unknown Creator',
+            coverImage: googleDrivePodcast.coverImage,
+            categories: [googleDrivePodcast.category],
+            totalEpisodes: googleDrivePodcast.episodes?.length || 0
+          };
           
-          // Fetch episodes
-          const episodesData = await podcastService.getEpisodesByPodcastId(id);
-          setEpisodes(episodesData);
+          setPodcast(formattedPodcast);
           
-          // Check if favorited
-          if (isAuthenticated) {
-            const favoriteStatus = await podcastService.isPodcastFavorited(id);
-            setIsFavorite(favoriteStatus);
+          // Format episodes
+          if (googleDrivePodcast.episodes && googleDrivePodcast.episodes.length > 0) {
+            const formattedEpisodes = googleDrivePodcast.episodes.map((ep: any) => ({
+              id: ep.id,
+              podcastId: googleDrivePodcast.id,
+              title: ep.title,
+              description: ep.description,
+              audioUrl: ep.audioUrl,
+              audioFileId: ep.audioFileId,
+              duration: ep.duration ? parseInt(ep.duration) : 300, // Default to 5 minutes if duration not available
+              releaseDate: ep.createdAt,
+              isExclusive: false
+            }));
+            
+            setEpisodes(formattedEpisodes);
           }
         } else {
-          // If not found in standard service, check Google Drive storage
-          const googleDrivePodcasts = await getPodcastMetadata();
-          const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
+          // If not found in Google Drive, try standard service
+          const podcastData = await podcastService.getPodcastById(id);
           
-          if (googleDrivePodcast) {
-            const formattedPodcast: Podcast = {
-              id: googleDrivePodcast.id,
-              title: googleDrivePodcast.title,
-              description: googleDrivePodcast.description,
-              creator: googleDrivePodcast.userId || 'Unknown Creator',
-              coverImage: googleDrivePodcast.coverImage,
-              categories: [googleDrivePodcast.category],
-              totalEpisodes: googleDrivePodcast.episodes?.length || 0
-            };
+          if (podcastData) {
+            setPodcast(podcastData);
             
-            setPodcast(formattedPodcast);
+            // Fetch episodes
+            const episodesData = await podcastService.getEpisodesByPodcastId(id);
+            setEpisodes(episodesData);
             
-            // Format episodes
-            if (googleDrivePodcast.episodes && googleDrivePodcast.episodes.length > 0) {
-              const formattedEpisodes = googleDrivePodcast.episodes.map((ep: any) => ({
-                id: ep.id,
-                podcastId: googleDrivePodcast.id,
-                title: ep.title,
-                description: ep.description,
-                audioUrl: ep.audioUrl,
-                audioFileId: ep.audioFileId,
-                duration: ep.duration ? parseInt(ep.duration) : 300, // Default to 5 minutes if duration not available
-                releaseDate: ep.createdAt,
-                isExclusive: false
-              }));
-              
-              setEpisodes(formattedEpisodes);
+            // Check if favorited
+            if (isAuthenticated) {
+              const favoriteStatus = await podcastService.isPodcastFavorited(id);
+              setIsFavorite(favoriteStatus);
             }
           } else {
             // If not found anywhere

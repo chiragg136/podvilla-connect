@@ -19,9 +19,9 @@ import PodcastDetails from "./pages/PodcastDetails";
 // Create a client
 const queryClient = new QueryClient();
 
-// Initialize IPFS storage preference
+// Initialize storage preference to Google Drive
 if (localStorage.getItem('storagePreference') === null) {
-  localStorage.setItem('storagePreference', 'ipfs');
+  localStorage.setItem('storagePreference', 'googleDrive');
 }
 
 const App = () => {
