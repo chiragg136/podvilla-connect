@@ -105,9 +105,12 @@ export const uploadToGoogleDrive = async (
       throw new Error(`File size exceeds the ${maxSizeMB}MB limit. Please upload a smaller file.`);
     }
     
+    // Clear any previous progress interval to avoid memory leaks
+    let progressInterval: number | undefined;
+    
     // Simulate upload progress
     let progress = 0;
-    const progressInterval = setInterval(() => {
+    progressInterval = window.setInterval(() => {
       progress += 10;
       if (progress <= 100) {
         if (onProgress) onProgress(progress);
@@ -131,15 +134,20 @@ export const uploadToGoogleDrive = async (
     console.log(`Upload complete. File ID: ${demoFileId}`);
     
     // Save info to localStorage to simulate persistence
-    const storedFiles = JSON.parse(localStorage.getItem('googleDriveFiles') || '[]');
-    storedFiles.push({
-      id: demoFileId,
-      name: file.name,
-      type: file.type,
-      url: publicUrl,
-      uploadDate: new Date().toISOString()
-    });
-    localStorage.setItem('googleDriveFiles', JSON.stringify(storedFiles));
+    try {
+      const storedFiles = JSON.parse(localStorage.getItem('googleDriveFiles') || '[]');
+      storedFiles.push({
+        id: demoFileId,
+        name: file.name,
+        type: file.type,
+        url: publicUrl,
+        uploadDate: new Date().toISOString()
+      });
+      localStorage.setItem('googleDriveFiles', JSON.stringify(storedFiles));
+    } catch (storageError) {
+      console.error("Error saving to localStorage:", storageError);
+      // Continue even if localStorage fails
+    }
     
     return {
       success: true,

@@ -1,3 +1,4 @@
+
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
-import { handleGoogleDrivePodcastUpload } from '@/api/googleDriveUploadHandler';
+import { uploadPodcast } from '@/api/podcastStorageManager';
 
 const PodcastUpload = () => {
   const navigate = useNavigate();
@@ -113,15 +114,15 @@ const PodcastUpload = () => {
         category
       });
 
-      toast.info('Uploading to Google Drive storage...');
-      const result = await handleGoogleDrivePodcastUpload(
+      toast.info('Uploading podcast to storage...');
+      const result = await uploadPodcast(
         formData, 
         user.id,
         (progress) => setUploadProgress(progress)
       );
 
       if (result.success) {
-        toast.success('Upload complete! Your podcast has been successfully uploaded to Google Drive storage.');
+        toast.success('Upload complete! Your podcast has been successfully uploaded.');
         
         setTitle('');
         setDescription('');

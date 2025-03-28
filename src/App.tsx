@@ -15,12 +15,13 @@ import RoomChannel from "./pages/RoomChannel";
 import Profile from "./pages/Profile";
 import PodcastUpload from "./pages/PodcastUpload";
 import PodcastDetails from "./pages/PodcastDetails";
+import { setStoragePreference } from "./api/podcastStorageManager";
 
 // Create a client
 const queryClient = new QueryClient();
 
 // Initialize storage preference to Google Drive
-localStorage.setItem('storagePreference', 'googleDrive');
+setStoragePreference('googleDrive');
 
 const App = () => {
   return (

@@ -33,7 +33,7 @@ export const handleGoogleDrivePodcastUpload = async (
 
     // Validate audio file type
     const validAudioTypes = ['audio/mp3', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'audio/wav', 'audio/x-m4a'];
-    if (!validAudioTypes.includes(audioFile.type) && !audioFile.name.endsWith('.mp3') && !audioFile.name.endsWith('.mp4')) {
+    if (!validAudioTypes.includes(audioFile.type) && !audioFile.name.endsWith('.mp3') && !audioFile.name.endsWith('.mp4') && !audioFile.name.endsWith('.wav') && !audioFile.name.endsWith('.m4a')) {
       console.error("Invalid audio file type:", audioFile.type);
       throw new Error(`Invalid audio file type: ${audioFile.type}. Please upload an MP3 or MP4 file.`);
     }
@@ -56,8 +56,10 @@ export const handleGoogleDrivePodcastUpload = async (
       }
     );
 
-    if (!coverImageResult.success) {
-      throw new Error(`Failed to upload cover image: ${coverImageResult.error}`);
+    if (!coverImageResult.success || !coverImageResult.fileId || !coverImageResult.url) {
+      const errorMsg = coverImageResult.error || "Failed to upload cover image";
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
     
     console.log("Cover image uploaded successfully:", coverImageResult);
@@ -71,8 +73,10 @@ export const handleGoogleDrivePodcastUpload = async (
       }
     );
 
-    if (!audioResult.success) {
-      throw new Error(`Failed to upload audio file: ${audioResult.error}`);
+    if (!audioResult.success || !audioResult.fileId || !audioResult.url) {
+      const errorMsg = audioResult.error || "Failed to upload audio file";
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
     
     console.log("Audio file uploaded successfully:", audioResult);
@@ -114,38 +118,43 @@ export const handleGoogleDrivePodcastUpload = async (
     await storePodcastMetadata(podcastMetadata);
 
     // Save to localStorage for persistence in demo app
-    const existingPodcasts = localStorage.getItem('podcasts');
-    let podcasts = [];
-    
-    if (existingPodcasts) {
-      podcasts = JSON.parse(existingPodcasts);
+    try {
+      const existingPodcasts = localStorage.getItem('podcasts');
+      let podcasts = [];
+      
+      if (existingPodcasts) {
+        podcasts = JSON.parse(existingPodcasts);
+      }
+      
+      podcasts.push({
+        id: podcastId,
+        title,
+        description,
+        category,
+        coverImage: coverImageResult.url,
+        coverImageFileId: coverImageResult.fileId,
+        creator: "You",
+        totalEpisodes: 1,
+        createdAt: timestamp.toISOString(),
+        episodes: [
+          {
+            id: episodeId,
+            title: episodeTitle,
+            description: episodeDescription || description,
+            audioUrl: audioResult.url,
+            audioFileId: audioResult.fileId, 
+            duration: 300, // 5 minutes as default
+            releaseDate: timestamp.toISOString(),
+            isExclusive: false
+          }
+        ]
+      });
+      
+      localStorage.setItem('podcasts', JSON.stringify(podcasts));
+    } catch (storageError) {
+      console.error("Error saving to localStorage:", storageError);
+      // Continue even if localStorage fails - this is just for persistence in the demo
     }
-    
-    podcasts.push({
-      id: podcastId,
-      title,
-      description,
-      category,
-      coverImage: coverImageResult.url,
-      coverImageFileId: coverImageResult.fileId,
-      creator: "You",
-      totalEpisodes: 1,
-      createdAt: timestamp.toISOString(),
-      episodes: [
-        {
-          id: episodeId,
-          title: episodeTitle,
-          description: episodeDescription || description,
-          audioUrl: audioResult.url,
-          audioFileId: audioResult.fileId, 
-          duration: 300, // 5 minutes as default
-          releaseDate: timestamp.toISOString(),
-          isExclusive: false
-        }
-      ]
-    });
-    
-    localStorage.setItem('podcasts', JSON.stringify(podcasts));
     
     // Log for debugging
     console.log("Podcast upload completed successfully:", {
