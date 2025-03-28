@@ -14,6 +14,8 @@ export const handleGoogleDrivePodcastUpload = async (
   onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; podcastId?: string; error?: string }> => {
   try {
+    console.log("Starting Google Drive upload process");
+    
     // Extract data from form
     const title = formData.get('title') as string;
     const description = formData.get('description') as string;
@@ -23,7 +25,15 @@ export const handleGoogleDrivePodcastUpload = async (
     const episodeTitle = formData.get('episodeTitle') as string;
     const episodeDescription = formData.get('episodeDescription') as string;
 
+    console.log("Form data extracted:", { 
+      title, 
+      category, 
+      audioFileName: audioFile.name,
+      coverImageFileName: coverImageFile.name
+    });
+
     // Upload cover image to Google Drive
+    console.log("Uploading cover image to Google Drive");
     const coverImageResult = await uploadToGoogleDrive(
       coverImageFile,
       (progress) => {
@@ -34,8 +44,11 @@ export const handleGoogleDrivePodcastUpload = async (
     if (!coverImageResult.success) {
       throw new Error(`Failed to upload cover image: ${coverImageResult.error}`);
     }
+    
+    console.log("Cover image uploaded successfully:", coverImageResult);
 
     // Upload audio file to Google Drive
+    console.log("Uploading audio file to Google Drive");
     const audioResult = await uploadToGoogleDrive(
       audioFile,
       (progress) => {
@@ -46,6 +59,8 @@ export const handleGoogleDrivePodcastUpload = async (
     if (!audioResult.success) {
       throw new Error(`Failed to upload audio file: ${audioResult.error}`);
     }
+    
+    console.log("Audio file uploaded successfully:", audioResult);
 
     // Create podcast metadata
     const podcastId = `podcast-${Date.now()}`;
@@ -75,6 +90,7 @@ export const handleGoogleDrivePodcastUpload = async (
       ]
     };
 
+    console.log("Storing podcast metadata");
     // Store metadata in Google Drive
     await storePodcastMetadata(podcastMetadata);
 
@@ -113,7 +129,7 @@ export const handleGoogleDrivePodcastUpload = async (
     localStorage.setItem('podcasts', JSON.stringify(podcasts));
     
     // Log for debugging
-    console.log("Uploaded podcast metadata:", {
+    console.log("Podcast upload completed successfully:", {
       podcastId,
       audioUrl: audioResult.url,
       audioFileId: audioResult.fileId,

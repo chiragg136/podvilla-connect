@@ -20,9 +20,7 @@ import PodcastDetails from "./pages/PodcastDetails";
 const queryClient = new QueryClient();
 
 // Initialize storage preference to Google Drive
-if (localStorage.getItem('storagePreference') === null) {
-  localStorage.setItem('storagePreference', 'googleDrive');
-}
+localStorage.setItem('storagePreference', 'googleDrive');
 
 const App = () => {
   return (

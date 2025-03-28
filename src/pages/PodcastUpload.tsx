@@ -1,4 +1,3 @@
-
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -94,6 +93,13 @@ const PodcastUpload = () => {
       formData.append('episodeTitle', episodeTitle);
       formData.append('episodeDescription', episodeDescription || description);
 
+      console.log('Uploading podcast with files:', {
+        audioFile: selectedAudioFile.name,
+        coverImage: selectedCoverImage.name,
+        title,
+        category
+      });
+
       toast.info('Uploading to Google Drive storage...');
       const result = await handleGoogleDrivePodcastUpload(
         formData, 
@@ -122,7 +128,6 @@ const PodcastUpload = () => {
       toast.error('Upload failed. An error occurred while uploading your podcast.');
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
     }
   };
 
