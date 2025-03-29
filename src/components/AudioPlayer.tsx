@@ -4,6 +4,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
+import { getPlayableAudioUrl } from '@/utils/mediaUtils';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -19,12 +20,20 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [processedUrl, setProcessedUrl] = useState('');
 
   useEffect(() => {
-    const audio = new Audio(audioUrl);
+    // Process the URL to make it playable
+    const playableUrl = getPlayableAudioUrl(audioUrl);
+    setProcessedUrl(playableUrl);
+    
+    const audio = new Audio(playableUrl);
     audioRef.current = audio;
     
+    console.log("AudioPlayer: Using URL", playableUrl);
+    
     audio.addEventListener('loadedmetadata', () => {
+      console.log("AudioPlayer: Audio metadata loaded", { duration: audio.duration });
       setDuration(audio.duration);
       setIsLoading(false);
       if (autoPlay) {

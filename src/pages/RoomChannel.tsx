@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -21,41 +20,12 @@ import {
   Mic,
   MicOff,
   Video,
+  VideoOff,
   Volume,
   VolumeX,
   MessageSquare
 } from 'lucide-react';
-import { Separator } from "@/components/ui/separator";
-
-interface Message {
-  id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  content: string;
-  timestamp: Date;
-}
-
-interface Channel {
-  id: string;
-  name: string;
-  type: 'text' | 'voice' | 'video';
-}
-
-interface Room {
-  id: string;
-  name: string;
-  description?: string;
-  creatorId: string;
-  creatorName: string;
-  creatorAvatar: string;
-  memberCount: number;
-  isLive: boolean;
-  tags: string[];
-  channels: string[];
-  createdAt: Date;
-  messages?: Record<string, Message[]>;
-}
+import roomService, { Room, Message } from '@/services/roomService';
 
 const RoomChannel = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -64,23 +34,13 @@ const RoomChannel = () => {
   
   const [room, setRoom] = useState<Room | null>(null);
   const [activeChannel, setActiveChannel] = useState('general');
-  const [message, setMessage] = useState('');
+  const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Helper function to get or create channel messages
-  const getChannelMessages = (room: Room, channel: string): Message[] => {
-    if (!room.messages) {
-      room.messages = {};
-    }
-    if (!room.messages[channel]) {
-      room.messages[channel] = [];
-    }
-    return room.messages[channel];
-  };
+  const refreshInterval = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -89,26 +49,31 @@ const RoomChannel = () => {
       return;
     }
 
-    const fetchRoom = () => {
+    const fetchRoom = async () => {
+      if (!roomId) return;
+      
       setIsLoading(true);
       try {
-        const storedRooms = JSON.parse(localStorage.getItem('podcastRooms') || '[]');
-        const foundRoom = storedRooms.find((r: any) => r.id === roomId);
+        const roomData = await roomService.getRoomById(roomId);
         
-        if (foundRoom) {
-          // Convert dates and ensure channels exist
-          const processedRoom = {
-            ...foundRoom,
-            createdAt: new Date(foundRoom.createdAt),
-            channels: foundRoom.channels || ['general'],
-            messages: foundRoom.messages || {}
-          };
+        if (roomData) {
+          console.log("Room data loaded:", roomData);
+          setRoom(roomData);
           
-          setRoom(processedRoom);
+          if (user) {
+            await roomService.joinRoom(roomId, user.id);
+          }
           
-          // Get messages for the active channel
-          const channelMessages = getChannelMessages(processedRoom, activeChannel);
+          const channelMessages = await roomService.getMessages(roomId, activeChannel);
           setMessages(channelMessages);
+          
+          if (roomData.voiceEnabled?.includes(user?.id || '')) {
+            setAudioEnabled(true);
+          }
+          
+          if (roomData.videoEnabled?.includes(user?.id || '')) {
+            setVideoEnabled(true);
+          }
         } else {
           toast.error('Room not found');
           navigate('/rooms');
@@ -122,44 +87,48 @@ const RoomChannel = () => {
     };
     
     fetchRoom();
-  }, [roomId, isAuthenticated, navigate, activeChannel]);
+    
+    refreshInterval.current = window.setInterval(async () => {
+      if (roomId && activeChannel) {
+        try {
+          const updatedMessages = await roomService.getMessages(roomId, activeChannel);
+          setMessages(updatedMessages);
+        } catch (error) {
+          console.error('Error refreshing messages:', error);
+        }
+      }
+    }, 5000) as unknown as number;
+    
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+    };
+  }, [roomId, isAuthenticated, navigate, user, activeChannel]);
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !room) return;
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !room || !user) return;
     
-    const newMessage: Message = {
-      id: `msg_${Date.now()}`,
-      userId: user?.id || 'unknown',
-      userName: user?.name || 'Anonymous User',
-      userAvatar: user?.profileImage || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
-      content: message.trim(),
-      timestamp: new Date()
-    };
-    
-    // Create a new room object with the updated messages
-    const updatedRoom = { ...room };
-    const channelMessages = getChannelMessages(updatedRoom, activeChannel);
-    updatedRoom.messages = {
-      ...updatedRoom.messages,
-      [activeChannel]: [...channelMessages, newMessage]
-    };
-    
-    // Update localStorage
-    const storedRooms = JSON.parse(localStorage.getItem('podcastRooms') || '[]');
-    const updatedRooms = storedRooms.map((r: any) => 
-      r.id === room.id ? updatedRoom : r
-    );
-    localStorage.setItem('podcastRooms', JSON.stringify(updatedRooms));
-    
-    // Update state
-    setRoom(updatedRoom);
-    setMessages([...channelMessages, newMessage]);
-    setMessage('');
+    try {
+      await roomService.sendMessage(roomId || '', activeChannel, {
+        userId: user.id,
+        userName: user.name || 'Anonymous User',
+        userAvatar: user.profileImage || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
+        content: messageText.trim()
+      });
+      
+      const updatedMessages = await roomService.getMessages(roomId || '', activeChannel);
+      setMessages(updatedMessages);
+      
+      setMessageText('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -169,12 +138,40 @@ const RoomChannel = () => {
     }
   };
 
-  const handleChannelChange = (channel: string) => {
+  const handleChannelChange = async (channel: string) => {
     setActiveChannel(channel);
     
-    if (room) {
-      const channelMessages = getChannelMessages(room, channel);
+    if (roomId) {
+      const channelMessages = await roomService.getMessages(roomId, channel);
       setMessages(channelMessages);
+    }
+  };
+
+  const toggleAudio = async () => {
+    if (!roomId || !user) return;
+    
+    const newState = !audioEnabled;
+    const success = await roomService.toggleVoiceChat(roomId, user.id, newState);
+    
+    if (success) {
+      setAudioEnabled(newState);
+      toast.success(newState ? 'Microphone enabled' : 'Microphone disabled');
+    } else {
+      toast.error('Failed to toggle audio');
+    }
+  };
+
+  const toggleVideo = async () => {
+    if (!roomId || !user) return;
+    
+    const newState = !videoEnabled;
+    const success = await roomService.toggleVideoChat(roomId, user.id, newState);
+    
+    if (success) {
+      setVideoEnabled(newState);
+      toast.success(newState ? 'Camera enabled' : 'Camera disabled');
+    } else {
+      toast.error('Failed to toggle video');
     }
   };
 
@@ -182,7 +179,7 @@ const RoomChannel = () => {
     return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit'
-    }).format(date);
+    }).format(new Date(date));
   };
 
   if (isLoading) {
@@ -221,7 +218,6 @@ const RoomChannel = () => {
       
       <main className="flex-grow pt-24 md:pt-20 px-0">
         <div className="max-w-screen-2xl mx-auto h-[calc(100vh-12rem)] flex flex-col">
-          {/* Room Header */}
           <div className="px-4 py-3 border-b flex items-center justify-between bg-white">
             <div className="flex items-center">
               <Button variant="ghost" size="sm" asChild className="mr-2">
@@ -229,8 +225,8 @@ const RoomChannel = () => {
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
               </Button>
-              <h1 className="text-xl font-bold">{room.name}</h1>
-              {room.isLive && (
+              <h1 className="text-xl font-bold">{room?.name}</h1>
+              {room?.isLive && (
                 <Badge variant="destructive" className="ml-2 px-2 py-1 bg-red-500">
                   LIVE
                 </Badge>
@@ -239,7 +235,7 @@ const RoomChannel = () => {
             <div className="flex items-center gap-2">
               <div className="text-sm text-gray-500 hidden md:flex items-center">
                 <Users className="h-4 w-4 mr-1" />
-                <span>{room.memberCount} members</span>
+                <span>{room?.memberCount || 0} members</span>
               </div>
               <Button variant="ghost" size="sm">
                 <Settings className="h-4 w-4" />
@@ -247,19 +243,17 @@ const RoomChannel = () => {
             </div>
           </div>
           
-          {/* Main content */}
           <div className="flex flex-grow overflow-hidden">
-            {/* Sidebar */}
             <div className="w-64 border-r bg-gray-50 flex flex-col">
               <div className="p-4 border-b">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8 border border-primary">
-                    <AvatarImage src={room.creatorAvatar} />
-                    <AvatarFallback>{room.creatorName[0]}</AvatarFallback>
+                    <AvatarImage src={room?.creatorAvatar} />
+                    <AvatarFallback>{room?.creatorName?.[0] || 'C'}</AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="flex items-center">
-                      <span className="text-xs font-medium">{room.creatorName}</span>
+                      <span className="text-xs font-medium">{room?.creatorName}</span>
                       <Crown className="h-3 w-3 text-yellow-500 ml-1" />
                     </div>
                     <p className="text-xs text-gray-500">Creator</p>
@@ -270,7 +264,7 @@ const RoomChannel = () => {
               <div className="p-3">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-semibold uppercase text-gray-500">Channels</h3>
-                  {user?.id === room.creatorId && (
+                  {user?.id === room?.creatorId && (
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                       <PlusCircle className="h-3 w-3" />
                     </Button>
@@ -278,7 +272,7 @@ const RoomChannel = () => {
                 </div>
                 
                 <div className="space-y-1">
-                  {room.channels.map((channel) => (
+                  {room?.channels.map((channel) => (
                     <Button 
                       key={channel} 
                       variant={activeChannel === channel ? "secondary" : "ghost"} 
@@ -299,7 +293,7 @@ const RoomChannel = () => {
                   <Button 
                     variant={audioEnabled ? "secondary" : "ghost"} 
                     className="w-full justify-start text-sm h-8 px-2"
-                    onClick={() => setAudioEnabled(!audioEnabled)}
+                    onClick={toggleAudio}
                   >
                     {audioEnabled ? (
                       <Mic className="h-4 w-4 mr-2" />
@@ -312,9 +306,13 @@ const RoomChannel = () => {
                   <Button 
                     variant={videoEnabled ? "secondary" : "ghost"} 
                     className="w-full justify-start text-sm h-8 px-2 mt-1"
-                    onClick={() => setVideoEnabled(!videoEnabled)}
+                    onClick={toggleVideo}
                   >
-                    <Video className="h-4 w-4 mr-2" />
+                    {videoEnabled ? (
+                      <Video className="h-4 w-4 mr-2" />
+                    ) : (
+                      <VideoOff className="h-4 w-4 mr-2" />
+                    )}
                     Video Chat
                   </Button>
                 </div>
@@ -329,7 +327,7 @@ const RoomChannel = () => {
                     </Avatar>
                     <span className="text-sm font-medium">{user?.name || 'User'}</span>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={toggleAudio}>
                     {audioEnabled ? (
                       <Volume className="h-4 w-4" />
                     ) : (
@@ -340,7 +338,6 @@ const RoomChannel = () => {
               </div>
             </div>
             
-            {/* Chat area */}
             <div className="flex-grow flex flex-col">
               <div className="p-2 border-b flex items-center">
                 <Hash className="h-5 w-5 text-gray-500 mr-2" />
@@ -378,12 +375,12 @@ const RoomChannel = () => {
                 <div className="flex gap-2">
                   <Input
                     placeholder={`Message #${activeChannel}`}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     className="flex-grow"
                   />
-                  <Button onClick={handleSendMessage} disabled={!message.trim()}>
+                  <Button onClick={handleSendMessage} disabled={!messageText.trim()}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>

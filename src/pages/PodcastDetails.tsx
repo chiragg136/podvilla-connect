@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -16,7 +15,8 @@ import { useUser } from '@/contexts/UserContext';
 import Player from '@/components/Player';
 import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
-import { getGoogleDriveDownloadLink, getPodcastMetadata, getFileById } from '@/utils/googleDriveStorage';
+import { getPlayableAudioUrl, getDisplayableImageUrl } from '@/utils/mediaUtils';
+import { getPodcastMetadata } from '@/utils/googleDriveStorage';
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,12 +41,17 @@ const PodcastDetails = () => {
         const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
         
         if (googleDrivePodcast) {
+          console.log("Found podcast in Google Drive:", googleDrivePodcast);
+          
+          // Process the cover image URL
+          const coverImageUrl = getDisplayableImageUrl(googleDrivePodcast.coverImage);
+          
           const formattedPodcast: Podcast = {
             id: googleDrivePodcast.id,
             title: googleDrivePodcast.title,
             description: googleDrivePodcast.description,
             creator: googleDrivePodcast.userId || 'Unknown Creator',
-            coverImage: googleDrivePodcast.coverImage,
+            coverImage: coverImageUrl,
             categories: [googleDrivePodcast.category],
             totalEpisodes: googleDrivePodcast.episodes?.length || 0
           };
@@ -60,7 +65,7 @@ const PodcastDetails = () => {
               podcastId: googleDrivePodcast.id,
               title: ep.title,
               description: ep.description,
-              audioUrl: ep.audioUrl,
+              audioUrl: getPlayableAudioUrl(ep.audioUrl),
               audioFileId: ep.audioFileId,
               duration: ep.duration ? parseInt(ep.duration) : 300, // Default to 5 minutes if duration not available
               releaseDate: ep.createdAt,
@@ -74,11 +79,24 @@ const PodcastDetails = () => {
           const podcastData = await podcastService.getPodcastById(id);
           
           if (podcastData) {
-            setPodcast(podcastData);
+            // Process the cover image URL
+            const processedPodcast = {
+              ...podcastData,
+              coverImage: getDisplayableImageUrl(podcastData.coverImage)
+            };
+            
+            setPodcast(processedPodcast);
             
             // Fetch episodes
             const episodesData = await podcastService.getEpisodesByPodcastId(id);
-            setEpisodes(episodesData);
+            
+            // Process audio URLs for episodes
+            const processedEpisodes = episodesData.map(episode => ({
+              ...episode,
+              audioUrl: getPlayableAudioUrl(episode.audioUrl)
+            }));
+            
+            setEpisodes(processedEpisodes);
             
             // Check if favorited
             if (isAuthenticated) {
@@ -114,28 +132,15 @@ const PodcastDetails = () => {
   };
 
   const handlePlayEpisode = async (episode: Episode) => {
-    // For episodes with direct Google Drive links
-    if (episode.audioFileId) {
-      // Get or create a direct streaming URL
-      const directUrl = getGoogleDriveDownloadLink(episode.audioFileId);
-      setCurrentAudioUrl(directUrl);
-      
-      if (currentEpisode && currentEpisode.id === episode.id) {
-        setIsPlaying(!isPlaying);
-      } else {
-        setCurrentEpisode(episode);
-        setIsPlaying(true);
-      }
-      
-      return;
-    }
+    // For direct playback, use the processed URL
+    const directUrl = getPlayableAudioUrl(episode.audioUrl);
+    console.log("Playing episode:", { title: episode.title, url: directUrl });
+    setCurrentAudioUrl(directUrl);
     
-    // For regular episodes
     if (currentEpisode && currentEpisode.id === episode.id) {
       setIsPlaying(!isPlaying);
     } else {
       setCurrentEpisode(episode);
-      setCurrentAudioUrl(episode.audioUrl);
       setIsPlaying(true);
     }
   };
@@ -251,11 +256,18 @@ const PodcastDetails = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div className="aspect-square rounded-xl overflow-hidden">
-            <img 
-              src={podcast.coverImage} 
-              alt={podcast.title}
-              className="w-full h-full object-cover"
-            />
+            {podcast && (
+              <img 
+                src={podcast.coverImage} 
+                alt={podcast.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = '/placeholder.svg';
+                }}
+              />
+            )}
           </div>
           
           <div className="md:col-span-2">

@@ -3,6 +3,7 @@ import { Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
+import { getDisplayableImageUrl } from '@/utils/mediaUtils';
 
 interface PodcastCardProps {
   id: string;
@@ -28,14 +29,22 @@ const PodcastCard = ({
     }
   };
 
+  // Process the cover image URL
+  const displayableCoverImage = getDisplayableImageUrl(coverImage);
+
   return (
     <Link to={`/podcast/${id}`}>
       <Card className="overflow-hidden hover:shadow-md transition-shadow group">
         <div className="relative aspect-square">
           <img
-            src={coverImage}
+            src={displayableCoverImage}
             alt={title}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null;
+              target.src = '/placeholder.svg';
+            }}
           />
           {onPlay && (
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">

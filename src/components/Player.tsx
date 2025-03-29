@@ -3,7 +3,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic,
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
-import { getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
+import { getPlayableAudioUrl, getDisplayableImageUrl } from '@/utils/mediaUtils';
 
 interface PlayerProps {
   isVisible?: boolean;
@@ -13,7 +13,6 @@ interface PlayerProps {
   audioUrl?: string;
 }
 
-// Mock podcast data
 const podcastData = {
   'featured-podcast': {
     title: 'The Daily Tech',
@@ -59,7 +58,6 @@ const podcastData = {
   }
 };
 
-// Mock episode data
 const episodeData: Record<string, any> = {
   'ep1': { title: 'Introduction to Tech', duration: 240, audioUrl: 'https://example.com/audio1.mp3' },
   'ep2': { title: 'Advanced Programming', duration: 300, audioUrl: 'https://example.com/audio2.mp3' },
@@ -85,10 +83,10 @@ const Player = ({
   const [totalDuration, setTotalDuration] = useState(240);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioSource, setAudioSource] = useState<string | null>(null);
+  const [processedAudioUrl, setProcessedAudioUrl] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Create audio element
   useEffect(() => {
     audioRef.current = new Audio();
     
@@ -103,6 +101,7 @@ const Player = ({
     
     audioRef.current.addEventListener('loadedmetadata', () => {
       if (audioRef.current && audioRef.current.duration) {
+        console.log("Player: Audio metadata loaded", { duration: audioRef.current.duration });
         setTotalDuration(audioRef.current.duration);
       }
     });
@@ -122,32 +121,36 @@ const Player = ({
     };
   }, []);
 
-  // Set audio source
   useEffect(() => {
-    // Check if we have a direct audio URL from props
     if (propAudioUrl) {
       setAudioSource(propAudioUrl);
       return;
     }
     
-    // Otherwise try to get it from episode data
     if (episodeId && episodeData[episodeId]) {
       const audioSrc = episodeData[episodeId].audioUrl;
       setAudioSource(audioSrc);
       return;
     }
     
-    // If we only have a podcast ID, set a dummy source
     if (podcastId) {
       const dummySource = `https://example.com/podcast/${podcastId}/audio.mp3`;
       setAudioSource(dummySource);
     }
   }, [podcastId, episodeId, propAudioUrl]);
 
-  // Update audio element when source changes
   useEffect(() => {
-    if (audioRef.current && audioSource) {
-      audioRef.current.src = audioSource;
+    if (audioSource) {
+      const playableUrl = getPlayableAudioUrl(audioSource);
+      console.log("Player: Processing audio URL", { original: audioSource, processed: playableUrl });
+      setProcessedAudioUrl(playableUrl);
+    }
+  }, [audioSource]);
+
+  useEffect(() => {
+    if (audioRef.current && processedAudioUrl) {
+      console.log("Player: Setting audio source", processedAudioUrl);
+      audioRef.current.src = processedAudioUrl;
       audioRef.current.load();
       
       if (isPlaying) {
@@ -161,16 +164,8 @@ const Player = ({
         });
       }
     }
-  }, [audioSource, toast]);
+  }, [processedAudioUrl, toast]);
 
-  // Update volume
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100;
-    }
-  }, [volume, isMuted]);
-
-  // Handle play/pause
   useEffect(() => {
     if (audioRef.current) {
       if (isPlaying) {
@@ -192,7 +187,6 @@ const Player = ({
       setProgress(0);
       setCurrentTime(0);
       
-      // Get total duration from podcast data as a fallback
       setTotalDuration(podcastData[podcastId as keyof typeof podcastData].duration);
       
       toast({
@@ -210,10 +204,8 @@ const Player = ({
     setShowPlayer(isVisible);
   }, [isVisible]);
 
-  // Handle episode-specific logic
   useEffect(() => {
     if (episodeId && episodeData[episodeId]) {
-      // If we have an episode ID, use its duration
       setTotalDuration(episodeData[episodeId].duration);
     }
   }, [episodeId]);
@@ -292,19 +284,25 @@ const Player = ({
     coverImage: "https://images.unsplash.com/photo-1599689018356-f4bae9bf4bc3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
   };
 
+  const displayableCoverImage = getDisplayableImageUrl(podcast.coverImage);
+
   return (
     <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-transform duration-500 ${
       showPlayer ? 'translate-y-0' : 'translate-y-full'
     }`}>
       <div className="max-w-7xl mx-auto px-4 py-3">
         <div className="grid grid-cols-12 gap-4 items-center">
-          {/* Podcast Info */}
           <div className="col-span-12 md:col-span-3 flex items-center">
             <div className="w-12 h-12 rounded overflow-hidden mr-3 flex-shrink-0">
               <img 
-                src={podcast.coverImage}
+                src={displayableCoverImage}
                 alt="Podcast cover" 
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = '/placeholder.svg';
+                }}
               />
             </div>
             <div className="min-w-0">
@@ -323,7 +321,6 @@ const Player = ({
             </Button>
           </div>
 
-          {/* Player Controls */}
           <div className="col-span-12 md:col-span-6 flex flex-col items-center">
             <div className="flex items-center space-x-4 mb-1 md:mb-2">
               <Button
@@ -371,7 +368,6 @@ const Player = ({
             </div>
           </div>
 
-          {/* Volume Controls */}
           <div className="col-span-12 md:col-span-3 flex items-center justify-end space-x-3">
             <div className="hidden md:flex items-center space-x-2">
               <Button
