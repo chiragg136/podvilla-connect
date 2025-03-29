@@ -16,7 +16,7 @@ import Player from '@/components/Player';
 import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
 import { getPlayableAudioUrl, getDisplayableImageUrl } from '@/utils/mediaUtils';
-import { getPodcastMetadata } from '@/utils/googleDriveStorage';
+import { getPodcastMetadata, getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
