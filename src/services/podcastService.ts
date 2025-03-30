@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Define podcast interfaces
 export interface Podcast {
@@ -6,7 +7,7 @@ export interface Podcast {
   title: string;
   creator: string;
   coverImage: string;
-  coverImageFileId?: string; // Added for Google Drive
+  coverImageFileId?: string;
   description: string;
   categories: string[];
   totalEpisodes: number;
@@ -19,13 +20,13 @@ export interface Episode {
   title: string;
   description: string;
   audioUrl: string;
-  audioFileId?: string; // For Google Drive
+  audioFileId?: string;
   duration: number; // in seconds
   releaseDate: string;
   isExclusive: boolean;
 }
 
-// Mock podcast data
+// Mock podcast data for demo purposes
 const mockPodcasts: Podcast[] = [
   {
     id: 'featured-podcast',
@@ -190,11 +191,39 @@ const mockUserLibrary: UserLibrary = {
 class PodcastService {
   // Get all podcasts including user uploaded ones
   async getAllPodcasts(): Promise<Podcast[]> {
-    // Simulate API call
+    // Try to get podcasts from Supabase first
+    try {
+      const { data: supabasePodcasts, error } = await supabase
+        .from('podcasts')
+        .select(`
+          *,
+          episodes(*)
+        `);
+      
+      if (error) {
+        console.error('Error fetching podcasts from Supabase:', error);
+        // Fall back to mock data if there's an error
+      } else if (supabasePodcasts && supabasePodcasts.length > 0) {
+        // Format Supabase podcasts to match the Podcast interface
+        return supabasePodcasts.map(podcast => ({
+          id: podcast.id,
+          title: podcast.title,
+          creator: 'Creator', // This would come from user data in a real app
+          coverImage: podcast.cover_url,
+          description: podcast.description,
+          categories: [podcast.category],
+          totalEpisodes: podcast.episodes ? podcast.episodes.length : 0
+        }));
+      }
+    } catch (supabaseError) {
+      console.error('Error in Supabase podcast fetch:', supabaseError);
+    }
+    
+    // Simulate API call to get mock data as fallback
     await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
-      // Get user uploaded podcasts from localStorage
+      // Get user uploaded podcasts from localStorage as a last resort
       const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
       
       // Combine mock podcasts with user uploaded podcasts
@@ -233,7 +262,37 @@ class PodcastService {
 
   // Get podcast by ID
   async getPodcastById(id: string): Promise<Podcast | null> {
-    // Simulate API call
+    // Try to get podcast from Supabase first
+    try {
+      const { data: podcast, error } = await supabase
+        .from('podcasts')
+        .select(`
+          *,
+          episodes(*)
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching podcast from Supabase:', error);
+        // Fall back to mock data if there's an error
+      } else if (podcast) {
+        // Format the Supabase podcast to match the Podcast interface
+        return {
+          id: podcast.id,
+          title: podcast.title,
+          creator: 'Creator', // This would come from user data in a real app
+          coverImage: podcast.cover_url,
+          description: podcast.description,
+          categories: [podcast.category],
+          totalEpisodes: podcast.episodes ? podcast.episodes.length : 0
+        };
+      }
+    } catch (supabaseError) {
+      console.error('Error in Supabase podcast fetch:', supabaseError);
+    }
+    
+    // Simulate API call for mock data as fallback
     await new Promise(resolve => setTimeout(resolve, 200));
     
     // Check mock podcasts first
@@ -267,7 +326,34 @@ class PodcastService {
 
   // Get episodes by podcast ID
   async getEpisodesByPodcastId(podcastId: string): Promise<Episode[]> {
-    // Simulate API call
+    // Try to get episodes from Supabase first
+    try {
+      const { data: episodes, error } = await supabase
+        .from('episodes')
+        .select('*')
+        .eq('podcast_id', podcastId);
+      
+      if (error) {
+        console.error('Error fetching episodes from Supabase:', error);
+        // Fall back to mock data if there's an error
+      } else if (episodes && episodes.length > 0) {
+        // Format the Supabase episodes to match the Episode interface
+        return episodes.map(episode => ({
+          id: episode.id,
+          podcastId: episode.podcast_id,
+          title: episode.title,
+          description: episode.description || '',
+          audioUrl: episode.audio_url,
+          duration: episode.duration || 0,
+          releaseDate: episode.created_at,
+          isExclusive: false
+        }));
+      }
+    } catch (supabaseError) {
+      console.error('Error in Supabase episodes fetch:', supabaseError);
+    }
+    
+    // Simulate API call for mock data as fallback
     await new Promise(resolve => setTimeout(resolve, 400));
     
     // Check mock episodes first

@@ -1,4 +1,7 @@
 
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
+import { getSafeFilename } from "@/utils/mediaUtils";
 import { podcastService } from "@/services/podcastService";
 
 export const handlePodcastUpload = async (
@@ -7,19 +10,6 @@ export const handlePodcastUpload = async (
   onProgress?: (progress: number) => void
 ) => {
   try {
-    // In a real app, this would connect to a cloud storage service
-    // like AWS S3, Google Cloud Storage, or Firebase Storage
-    
-    // Simulate upload progress for both files
-    for (let progress = 0; progress <= 100; progress += 5) {
-      if (onProgress) {
-        onProgress(progress);
-      }
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
     // Extract form data
     const title = formData.get('title') as string;
     const description = formData.get('description') as string;
@@ -33,47 +23,133 @@ export const handlePodcastUpload = async (
       throw new Error('Missing required fields for podcast upload');
     }
     
-    // In a real app, we would upload files to cloud storage
-    // and return URLs for the uploaded files
+    // Set initial progress
+    if (onProgress) onProgress(10);
     
-    const mockAudioUrl = `https://example.com/audio/${Date.now()}-${audioFile.name}`;
-    const mockCoverImageUrl = `https://example.com/images/${Date.now()}-${coverImage.name}`;
+    // Generate unique IDs and safe filenames
+    const podcastId = uuidv4();
+    const episodeId = uuidv4();
     
-    // Create podcast record
-    const newPodcast = {
-      id: `upload-${Date.now()}`,
-      title,
-      description,
-      creator: 'Current User', // This would come from user data
-      coverImage: mockCoverImageUrl,
-      categories: [category],
-      totalEpisodes: 1,
-      createdAt: new Date().toISOString(),
-      userId,
-    };
+    const safeAudioName = getSafeFilename(audioFile.name);
+    const safeCoverName = getSafeFilename(coverImage.name);
     
-    // Create episode record
-    const newEpisode = {
-      id: `episode-${Date.now()}`,
-      podcastId: newPodcast.id,
-      title: episodeTitle,
-      description: episodeDescription,
-      audioUrl: mockAudioUrl,
-      duration: 1800, // Mock duration (30 minutes)
-      releaseDate: new Date().toISOString(),
-      isExclusive: false,
-    };
+    const audioPath = `${podcastId}/${safeAudioName}`;
+    const coverPath = `${podcastId}/${safeCoverName}`;
     
-    console.log('New podcast created:', newPodcast);
-    console.log('New episode created:', newEpisode);
+    // Upload cover image
+    if (onProgress) onProgress(20);
+    const { data: coverData, error: coverError } = await supabase.storage
+      .from('covers')
+      .upload(coverPath, coverImage, {
+        cacheControl: '3600',
+        upsert: false
+      });
     
+    if (coverError) {
+      console.error('Cover upload error:', coverError);
+      throw new Error(`Failed to upload cover image: ${coverError.message}`);
+    }
+    
+    // Get public URL for cover image
+    const { data: coverUrl } = supabase.storage.from('covers').getPublicUrl(coverPath);
+    
+    // Upload audio file
+    if (onProgress) onProgress(40);
+    const { data: audioData, error: audioError } = await supabase.storage
+      .from('podcasts')
+      .upload(audioPath, audioFile, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    
+    if (audioError) {
+      // Clean up the uploaded cover image
+      await supabase.storage.from('covers').remove([coverPath]);
+      console.error('Audio upload error:', audioError);
+      throw new Error(`Failed to upload audio file: ${audioError.message}`);
+    }
+    
+    // Get public URL for audio file
+    const { data: audioUrl } = supabase.storage.from('podcasts').getPublicUrl(audioPath);
+    
+    if (onProgress) onProgress(70);
+    
+    // Save podcast metadata to database
+    const { data: podcast, error: podcastError } = await supabase
+      .from('podcasts')
+      .insert({
+        id: podcastId,
+        title,
+        description,
+        category,
+        cover_url: coverUrl.publicUrl,
+        user_id: userId
+      })
+      .select()
+      .single();
+    
+    if (podcastError) {
+      // Clean up uploaded files
+      await supabase.storage.from('covers').remove([coverPath]);
+      await supabase.storage.from('podcasts').remove([audioPath]);
+      console.error('Podcast metadata error:', podcastError);
+      throw new Error(`Failed to save podcast metadata: ${podcastError.message}`);
+    }
+    
+    if (onProgress) onProgress(85);
+    
+    // Save episode metadata to database
+    const { data: episode, error: episodeError } = await supabase
+      .from('episodes')
+      .insert({
+        id: episodeId,
+        podcast_id: podcastId,
+        title: episodeTitle,
+        description: episodeDescription,
+        audio_url: audioUrl.publicUrl,
+        duration: 0 // Will be updated when audio is loaded
+      })
+      .select()
+      .single();
+    
+    if (episodeError) {
+      // Clean up uploaded files and podcast metadata
+      await supabase.storage.from('covers').remove([coverPath]);
+      await supabase.storage.from('podcasts').remove([audioPath]);
+      await supabase.from('podcasts').delete().eq('id', podcastId);
+      console.error('Episode metadata error:', episodeError);
+      throw new Error(`Failed to save episode metadata: ${episodeError.message}`);
+    }
+    
+    if (onProgress) onProgress(100);
+    
+    // Return success result
     return {
       success: true,
-      podcast: newPodcast,
-      episode: newEpisode,
+      podcast: {
+        id: podcastId,
+        title,
+        description,
+        creator: 'Current User',
+        coverImage: coverUrl.publicUrl,
+        categories: [category],
+        totalEpisodes: 1,
+        createdAt: new Date().toISOString(),
+        userId,
+      },
+      episode: {
+        id: episodeId,
+        podcastId: podcastId,
+        title: episodeTitle,
+        description: episodeDescription,
+        audioUrl: audioUrl.publicUrl,
+        duration: 0,
+        releaseDate: new Date().toISOString(),
+        isExclusive: false,
+      }
     };
   } catch (error) {
     console.error('Podcast upload error:', error);
-    return { success: false, error: 'Failed to upload podcast' };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to upload podcast' };
   }
 };

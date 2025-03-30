@@ -1,4 +1,6 @@
 
+import { supabase } from "@/integrations/supabase/client";
+
 /**
  * Utility functions for media handling
  */
@@ -11,7 +13,12 @@
 export const getPlayableAudioUrl = (url: string | undefined): string => {
   if (!url) return '';
   
-  // Handle Google Drive links
+  // For Supabase storage URLs, return as is
+  if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/')) {
+    return url;
+  }
+  
+  // Handle Google Drive links (legacy support)
   if (url.includes('drive.google.com')) {
     // Extract file ID from various Google Drive URL formats
     const fileIdMatch = url.match(/[-\w]{25,}/);
@@ -36,7 +43,12 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
 export const getDisplayableImageUrl = (url: string | undefined): string => {
   if (!url) return '/placeholder.svg';
   
-  // Handle Google Drive links
+  // For Supabase storage URLs, return as is
+  if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/')) {
+    return url;
+  }
+  
+  // Handle Google Drive links (legacy support)
   if (url.includes('drive.google.com')) {
     // Extract file ID from various Google Drive URL formats
     const fileIdMatch = url.match(/[-\w]{25,}/);
@@ -50,15 +62,6 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
   }
   
   return url;
-};
-
-/**
- * Get direct download link for Google Drive file
- * @param fileId Google Drive file ID
- * @returns Direct download URL
- */
-export const getGoogleDriveDownloadLink = (fileId: string): string => {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
 };
 
 /**
@@ -86,4 +89,25 @@ export const checkMediaStatus = (url: string, type: 'audio' | 'image'): Promise<
       img.src = getDisplayableImageUrl(url);
     }
   });
+};
+
+/**
+ * Get file extension from filename or URL
+ * @param filename Filename or URL
+ * @returns File extension without the dot
+ */
+export const getFileExtension = (filename: string): string => {
+  return filename.split('.').pop()?.toLowerCase() || '';
+};
+
+/**
+ * Generate a safe filename for storage
+ * @param originalName Original filename
+ * @returns Safe filename
+ */
+export const getSafeFilename = (originalName: string): string => {
+  // Replace spaces with underscores and remove special characters
+  return originalName
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9_.-]/g, '');
 };

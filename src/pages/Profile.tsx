@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -9,15 +10,16 @@ import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
 import PodcastCard from '@/components/PodcastCard';
-import { podcastService, Podcast } from '@/services/podcastService';
+import { podcastService } from '@/services/podcastService';
+import { getUserPodcasts } from '@/api/podcastStorageManager';
 import { Upload, Music, Heart, Bookmark, History, Settings } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useUser();
   const [isLoading, setIsLoading] = useState(true);
-  const [userPodcasts, setUserPodcasts] = useState<Podcast[]>([]);
-  const [favoritePodcasts, setFavoritePodcasts] = useState<Podcast[]>([]);
+  const [userPodcasts, setUserPodcasts] = useState<any[]>([]);
+  const [favoritePodcasts, setFavoritePodcasts] = useState<any[]>([]);
   
   // Redirect if not authenticated
   useEffect(() => {
@@ -31,13 +33,14 @@ const Profile = () => {
   const loadUserContent = async () => {
     setIsLoading(true);
     try {
-      // This would fetch user's podcasts in a real app
-      const allPodcasts = await podcastService.getAllPodcasts();
-      // For demo, just use some random podcasts
-      const randomPodcasts = allPodcasts.sort(() => Math.random() - 0.5).slice(0, 3);
-      setUserPodcasts(randomPodcasts);
+      // Get user's podcasts from Supabase
+      if (user) {
+        const podcasts = await getUserPodcasts(user.id);
+        setUserPodcasts(podcasts);
+      }
       
-      // Get some random favorites
+      // For demo, just use some random podcasts for favorites
+      const allPodcasts = await podcastService.getAllPodcasts();
       const randomFavorites = allPodcasts.sort(() => Math.random() - 0.5).slice(0, 4);
       setFavoritePodcasts(randomFavorites);
     } catch (error) {
@@ -143,9 +146,9 @@ const Profile = () => {
                       key={podcast.id}
                       id={podcast.id}
                       title={podcast.title}
-                      creator={podcast.creator}
-                      coverImage={podcast.coverImage}
-                      duration={`${podcast.totalEpisodes} episodes`}
+                      creator={user.name || user.email.split('@')[0]}
+                      coverImage={podcast.cover_url}
+                      duration={`${podcast.episodes?.length || 0} episodes`}
                     />
                   ))}
                 </div>
