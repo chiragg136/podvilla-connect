@@ -24,6 +24,9 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [loadAttempts, setLoadAttempts] = useState(0);
 
   useEffect(() => {
+    // Reset load attempts when URL changes
+    setLoadAttempts(0);
+    
     // Process the URL to make it playable
     const playableUrl = getPlayableAudioUrl(audioUrl);
     setProcessedUrl(playableUrl);
@@ -66,7 +69,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
       setIsLoading(false);
       
       // Try again with a different URL format if we haven't tried too many times
-      if (loadAttempts < 2 && audioUrl.includes('drive.google.com')) {
+      if (loadAttempts < 3 && audioUrl.includes('drive.google.com')) {
         setLoadAttempts(prev => prev + 1);
         const fileIdMatch = audioUrl.match(/[-\w]{25,}/);
         if (fileIdMatch && fileIdMatch[0]) {
@@ -76,11 +79,14 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
           // Try different URL formats for Google Drive
           if (loadAttempts === 0) {
             alternativeUrl = `https://docs.google.com/uc?export=download&id=${fileId}`;
-          } else {
+          } else if (loadAttempts === 1) {
             alternativeUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+          } else {
+            // Try direct link as a last resort
+            alternativeUrl = `https://drive.google.com/file/d/${fileId}/preview`;
           }
           
-          console.log(`Retrying with alternative URL (attempt ${loadAttempts + 1}):`, alternativeUrl);
+          console.log(`Retrying with alternative URL (attempt ${loadAttempts}):`, alternativeUrl);
           audio.src = alternativeUrl;
           audio.load();
           return;

@@ -33,9 +33,13 @@ export const handleGoogleDrivePodcastUpload = async (
 
     // Validate audio file type
     const validAudioTypes = ['audio/mp3', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'audio/wav', 'audio/x-m4a'];
-    if (!validAudioTypes.includes(audioFile.type) && !audioFile.name.endsWith('.mp3') && !audioFile.name.endsWith('.mp4') && !audioFile.name.endsWith('.wav') && !audioFile.name.endsWith('.m4a')) {
+    const fileExtension = audioFile.name.split('.').pop()?.toLowerCase();
+    const isValidType = validAudioTypes.includes(audioFile.type) || 
+                       ['mp3', 'mp4', 'wav', 'm4a'].includes(fileExtension || '');
+    
+    if (!isValidType) {
       console.error("Invalid audio file type:", audioFile.type);
-      throw new Error(`Invalid audio file type: ${audioFile.type}. Please upload an MP3 or MP4 file.`);
+      throw new Error(`Invalid audio file type: ${audioFile.type}. Please upload an MP3, MP4, WAV, or M4A file.`);
     }
 
     console.log("Form data extracted:", { 
@@ -114,7 +118,7 @@ export const handleGoogleDrivePodcastUpload = async (
     };
 
     console.log("Storing podcast metadata");
-    // Store metadata in Google Drive
+    // Store metadata
     await storePodcastMetadata(podcastMetadata);
 
     // Save to localStorage for persistence in demo app

@@ -19,7 +19,8 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
       const fileId = fileIdMatch[0];
       console.log('Extracted Google Drive file ID:', fileId);
       
-      // For preview (streaming)
+      // Use a more reliable streaming URL format
+      // The 'export=view' parameter works better for streaming media
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
@@ -42,7 +43,8 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
     if (fileIdMatch && fileIdMatch[0]) {
       const fileId = fileIdMatch[0];
       console.log('Extracted Google Drive image ID:', fileId);
-      // Use a more reliable way to access Google Drive images
+      
+      // Use a direct media URL format that's more reliable for images
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
