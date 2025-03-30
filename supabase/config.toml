@@ -1,1 +1,12 @@
+
 project_id = "ffnjrliexdowbhtyhyrp"
+
+[storage]
+[storage.buckets]
+[storage.buckets.covers]
+public = true
+allow_public_urls = true
+
+[storage.buckets.podcasts]
+public = true
+allow_public_urls = true

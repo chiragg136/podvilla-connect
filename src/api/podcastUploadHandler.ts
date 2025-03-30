@@ -36,6 +36,12 @@ export const handlePodcastUpload = async (
     const audioPath = `${podcastId}/${safeAudioName}`;
     const coverPath = `${podcastId}/${safeCoverName}`;
     
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('User is not authenticated. Please log in to upload podcasts.');
+    }
+    
     // Upload cover image
     if (onProgress) onProgress(20);
     const { data: coverData, error: coverError } = await supabase.storage

@@ -120,3 +120,31 @@ export const getSafeFilename = (originalName: string): string => {
 export const getGoogleDriveDownloadLink = (fileId: string): string => {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 };
+
+/**
+ * Check if user is authenticated with Supabase
+ * @returns Promise that resolves to a boolean indicating if user is authenticated
+ */
+export const checkSupabaseAuth = async (): Promise<boolean> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !!session;
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+    return false;
+  }
+};
+
+/**
+ * Get the current authenticated user ID from Supabase
+ * @returns Promise that resolves to the user ID or null if not authenticated
+ */
+export const getCurrentUserId = async (): Promise<string | null> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user?.id || null;
+  } catch (error) {
+    console.error('Error getting current user ID:', error);
+    return null;
+  }
+};

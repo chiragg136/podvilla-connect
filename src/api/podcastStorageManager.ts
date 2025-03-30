@@ -36,6 +36,16 @@ export const uploadPodcast = async (
   try {
     console.log("Starting podcast upload with Supabase storage");
     
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.error("User not authenticated");
+      return { 
+        success: false, 
+        error: "Authentication required. Please log in to upload podcasts." 
+      };
+    }
+    
     // Check if required files are included
     const audioFile = formData.get('audio') as File;
     const coverImageFile = formData.get('coverImage') as File;
@@ -78,6 +88,10 @@ export const uploadPodcast = async (
     
     // Set initial progress
     if (onProgress) onProgress(10);
+    
+    // Use the actual authenticated user ID from session
+    const actualUserId = session.user.id;
+    console.log("Uploading with authenticated user ID:", actualUserId);
     
     // Upload cover image first
     const { data: coverData, error: coverError } = await supabase.storage
@@ -132,7 +146,7 @@ export const uploadPodcast = async (
         description,
         category,
         cover_url: coverUrl.publicUrl,
-        user_id: userId
+        user_id: actualUserId // Use the authenticated user ID, not the passed userId
       })
       .select()
       .single();
