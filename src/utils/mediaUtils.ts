@@ -111,3 +111,12 @@ export const getSafeFilename = (originalName: string): string => {
     .replace(/\s+/g, '_')
     .replace(/[^a-zA-Z0-9_.-]/g, '');
 };
+
+/**
+ * Get a download link for Google Drive files (legacy support)
+ * @param fileId Google Drive file ID
+ * @returns Direct download URL
+ */
+export const getGoogleDriveDownloadLink = (fileId: string): string => {
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+};

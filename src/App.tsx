@@ -20,8 +20,8 @@ import { setStoragePreference } from "./api/podcastStorageManager";
 // Create a client
 const queryClient = new QueryClient();
 
-// Initialize storage preference to Google Drive
-setStoragePreference('googleDrive');
+// Initialize storage preference to Supabase
+setStoragePreference('supabase');
 
 const App = () => {
   return (
