@@ -13,22 +13,14 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
   
   // Handle Google Drive links
   if (url.includes('drive.google.com')) {
-    // Ensure it's a direct download link
-    if (url.includes('/view')) {
-      return url.replace('/view', '/preview');
-    }
-    
-    // If it's already a download link, return as is
-    if (url.includes('/uc?export=download') || url.includes('/uc?id=')) {
-      return url;
-    }
-    
     // Extract file ID from various Google Drive URL formats
     const fileIdMatch = url.match(/[-\w]{25,}/);
     if (fileIdMatch && fileIdMatch[0]) {
       const fileId = fileIdMatch[0];
       console.log('Extracted Google Drive file ID:', fileId);
-      return `https://docs.google.com/uc?export=download&id=${fileId}`;
+      
+      // For preview (streaming)
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
   
@@ -50,7 +42,8 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
     if (fileIdMatch && fileIdMatch[0]) {
       const fileId = fileIdMatch[0];
       console.log('Extracted Google Drive image ID:', fileId);
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+      // Use a more reliable way to access Google Drive images
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
   
@@ -63,7 +56,7 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
  * @returns Direct download URL
  */
 export const getGoogleDriveDownloadLink = (fileId: string): string => {
-  return `https://docs.google.com/uc?export=download&id=${fileId}`;
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
 };
 
 /**

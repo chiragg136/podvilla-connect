@@ -21,6 +21,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [processedUrl, setProcessedUrl] = useState('');
+  const [loadAttempts, setLoadAttempts] = useState(0);
 
   useEffect(() => {
     // Process the URL to make it playable
@@ -62,8 +63,31 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     
     audio.addEventListener('error', (e) => {
       console.error('Audio error:', e);
-      toast.error('Error playing audio. Please try again.');
       setIsLoading(false);
+      
+      // Try again with a different URL format if we haven't tried too many times
+      if (loadAttempts < 2 && audioUrl.includes('drive.google.com')) {
+        setLoadAttempts(prev => prev + 1);
+        const fileIdMatch = audioUrl.match(/[-\w]{25,}/);
+        if (fileIdMatch && fileIdMatch[0]) {
+          const fileId = fileIdMatch[0];
+          let alternativeUrl;
+          
+          // Try different URL formats for Google Drive
+          if (loadAttempts === 0) {
+            alternativeUrl = `https://docs.google.com/uc?export=download&id=${fileId}`;
+          } else {
+            alternativeUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+          }
+          
+          console.log(`Retrying with alternative URL (attempt ${loadAttempts + 1}):`, alternativeUrl);
+          audio.src = alternativeUrl;
+          audio.load();
+          return;
+        }
+      }
+      
+      toast.error('Error playing audio. The file may not be accessible.');
     });
     
     // Set initial volume
@@ -77,7 +101,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         audioRef.current.src = '';
       }
     };
-  }, [audioUrl, autoPlay, onEnded]);
+  }, [audioUrl, autoPlay, onEnded, loadAttempts]);
 
   useEffect(() => {
     if (audioRef.current) {
