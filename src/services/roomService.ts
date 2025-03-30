@@ -44,6 +44,7 @@ const getRoomsFromStorage = (): Room[] => {
       return rooms.map((room: any) => ({
         ...room,
         createdAt: new Date(room.createdAt),
+        // Ensure messages and user arrays exist
         messages: room.messages || {},
         activeUsers: room.activeUsers || [],
         voiceEnabled: room.voiceEnabled || [],
@@ -60,7 +61,14 @@ const getRoomsFromStorage = (): Room[] => {
 // Helper to save rooms to storage
 const saveRoomsToStorage = (rooms: Room[]): void => {
   try {
-    localStorage.setItem('podcastRooms', JSON.stringify(rooms));
+    // Convert Date objects to strings before storing
+    const roomsToSave = rooms.map(room => ({
+      ...room,
+      createdAt: room.createdAt.toISOString()
+    }));
+    
+    localStorage.setItem('podcastRooms', JSON.stringify(roomsToSave));
+    console.log('Saved rooms to storage:', roomsToSave);
   } catch (error) {
     console.error('Error saving rooms to storage:', error);
     toast.error('Failed to save room data');
@@ -81,7 +89,23 @@ const roomService = {
     await new Promise(resolve => setTimeout(resolve, 300));
     
     const rooms = getRoomsFromStorage();
-    return rooms.find(room => room.id === roomId) || null;
+    const room = rooms.find(room => room.id === roomId) || null;
+    
+    if (room) {
+      // Ensure messages property exists
+      if (!room.messages) {
+        room.messages = {};
+      }
+      
+      // Ensure each channel has a messages array
+      room.channels.forEach(channel => {
+        if (!room.messages![channel]) {
+          room.messages![channel] = [];
+        }
+      });
+    }
+    
+    return room;
   },
 
   // Create a new room
@@ -129,7 +153,7 @@ const roomService = {
     
     // Create a new message object
     const newMessage: Message = {
-      id: `msg_${Date.now()}`,
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       userId: message.userId,
       userName: message.userName,
       userAvatar: message.userAvatar,
@@ -141,6 +165,7 @@ const roomService = {
     if (!rooms[roomIndex].messages) {
       rooms[roomIndex].messages = {};
     }
+    
     if (!rooms[roomIndex].messages[channelName]) {
       rooms[roomIndex].messages[channelName] = [];
     }
@@ -149,6 +174,7 @@ const roomService = {
     rooms[roomIndex].messages[channelName].push(newMessage);
     
     saveRoomsToStorage(rooms);
+    console.log(`Message added to room ${roomId}, channel ${channelName}:`, newMessage);
     
     return newMessage;
   },
@@ -162,10 +188,17 @@ const roomService = {
     const room = rooms.find(room => room.id === roomId);
     
     if (!room || !room.messages || !room.messages[channelName]) {
+      console.log(`No messages found for room ${roomId}, channel ${channelName}`);
       return [];
     }
     
-    return room.messages[channelName];
+    // Convert string dates back to Date objects if needed
+    const messages = room.messages[channelName].map(msg => ({
+      ...msg,
+      timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)
+    }));
+    
+    return messages;
   },
 
   // Join a room
@@ -192,6 +225,7 @@ const roomService = {
     }
     
     saveRoomsToStorage(rooms);
+    console.log(`User ${userId} joined room ${roomId}`);
     
     return true;
   },
@@ -224,6 +258,7 @@ const roomService = {
     }
     
     saveRoomsToStorage(rooms);
+    console.log(`Voice chat ${enabled ? 'enabled' : 'disabled'} for user ${userId} in room ${roomId}`);
     
     return true;
   },
@@ -256,6 +291,7 @@ const roomService = {
     }
     
     saveRoomsToStorage(rooms);
+    console.log(`Video chat ${enabled ? 'enabled' : 'disabled'} for user ${userId} in room ${roomId}`);
     
     return true;
   }

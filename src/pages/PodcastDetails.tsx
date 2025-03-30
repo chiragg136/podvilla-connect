@@ -15,8 +15,8 @@ import { useUser } from '@/contexts/UserContext';
 import Player from '@/components/Player';
 import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
-import { getPlayableAudioUrl, getDisplayableImageUrl } from '@/utils/mediaUtils';
-import { getPodcastMetadata, getGoogleDriveDownloadLink } from '@/utils/googleDriveStorage';
+import { getPlayableAudioUrl, getDisplayableImageUrl, getGoogleDriveDownloadLink } from '@/utils/mediaUtils';
+import { getPodcastMetadata } from '@/utils/googleDriveStorage';
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,14 +36,12 @@ const PodcastDetails = () => {
       
       setIsLoading(true);
       try {
-        // First try to get podcast from Google Drive storage
         const googleDrivePodcasts = await getPodcastMetadata();
         const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
         
         if (googleDrivePodcast) {
           console.log("Found podcast in Google Drive:", googleDrivePodcast);
           
-          // Process the cover image URL
           const coverImageUrl = getDisplayableImageUrl(googleDrivePodcast.coverImage);
           
           const formattedPodcast: Podcast = {
@@ -58,7 +56,6 @@ const PodcastDetails = () => {
           
           setPodcast(formattedPodcast);
           
-          // Format episodes
           if (googleDrivePodcast.episodes && googleDrivePodcast.episodes.length > 0) {
             const formattedEpisodes = googleDrivePodcast.episodes.map((ep: any) => ({
               id: ep.id,
@@ -67,7 +64,7 @@ const PodcastDetails = () => {
               description: ep.description,
               audioUrl: getPlayableAudioUrl(ep.audioUrl),
               audioFileId: ep.audioFileId,
-              duration: ep.duration ? parseInt(ep.duration) : 300, // Default to 5 minutes if duration not available
+              duration: ep.duration ? parseInt(ep.duration) : 300,
               releaseDate: ep.createdAt,
               isExclusive: false
             }));
@@ -75,11 +72,9 @@ const PodcastDetails = () => {
             setEpisodes(formattedEpisodes);
           }
         } else {
-          // If not found in Google Drive, try standard service
           const podcastData = await podcastService.getPodcastById(id);
           
           if (podcastData) {
-            // Process the cover image URL
             const processedPodcast = {
               ...podcastData,
               coverImage: getDisplayableImageUrl(podcastData.coverImage)
@@ -87,10 +82,8 @@ const PodcastDetails = () => {
             
             setPodcast(processedPodcast);
             
-            // Fetch episodes
             const episodesData = await podcastService.getEpisodesByPodcastId(id);
             
-            // Process audio URLs for episodes
             const processedEpisodes = episodesData.map(episode => ({
               ...episode,
               audioUrl: getPlayableAudioUrl(episode.audioUrl)
@@ -98,13 +91,11 @@ const PodcastDetails = () => {
             
             setEpisodes(processedEpisodes);
             
-            // Check if favorited
             if (isAuthenticated) {
               const favoriteStatus = await podcastService.isPodcastFavorited(id);
               setIsFavorite(favoriteStatus);
             }
           } else {
-            // If not found anywhere
             toast.error('Podcast not found');
           }
         }
@@ -132,7 +123,6 @@ const PodcastDetails = () => {
   };
 
   const handlePlayEpisode = async (episode: Episode) => {
-    // For direct playback, use the processed URL
     const directUrl = getPlayableAudioUrl(episode.audioUrl);
     console.log("Playing episode:", { title: episode.title, url: directUrl });
     setCurrentAudioUrl(directUrl);
@@ -154,12 +144,10 @@ const PodcastDetails = () => {
     try {
       let downloadUrl = episode.audioUrl;
       
-      // If this is a Google Drive file, get the direct download link
       if (episode.audioFileId) {
         downloadUrl = getGoogleDriveDownloadLink(episode.audioFileId);
       }
       
-      // Create a temporary anchor element to trigger the download
       const a = document.createElement('a');
       a.href = downloadUrl;
       a.download = `${episode.title}.mp3`;
@@ -167,7 +155,6 @@ const PodcastDetails = () => {
       a.click();
       document.body.removeChild(a);
       
-      // Record the download
       await podcastService.addDownload(episode.id);
       toast.success('Episode downloaded for offline listening');
     } catch (error) {

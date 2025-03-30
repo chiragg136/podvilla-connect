@@ -27,7 +27,13 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     const playableUrl = getPlayableAudioUrl(audioUrl);
     setProcessedUrl(playableUrl);
     
-    const audio = new Audio(playableUrl);
+    // Create new audio element to avoid stale references
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    
+    const audio = new Audio();
     audioRef.current = audio;
     
     console.log("AudioPlayer: Using URL", playableUrl);
@@ -62,6 +68,8 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     
     // Set initial volume
     audio.volume = volume / 100;
+    audio.src = playableUrl;
+    audio.load();
     
     return () => {
       if (audioRef.current) {
@@ -77,6 +85,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         audioRef.current.play().catch(error => {
           console.error('Play prevented:', error);
           setIsPlaying(false);
+          toast.error('Unable to play audio. The file may be unavailable.');
         });
       } else {
         audioRef.current.pause();

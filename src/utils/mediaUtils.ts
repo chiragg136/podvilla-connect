@@ -26,7 +26,9 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
     // Extract file ID from various Google Drive URL formats
     const fileIdMatch = url.match(/[-\w]{25,}/);
     if (fileIdMatch && fileIdMatch[0]) {
-      return `https://drive.google.com/uc?export=download&id=${fileIdMatch[0]}`;
+      const fileId = fileIdMatch[0];
+      console.log('Extracted Google Drive file ID:', fileId);
+      return `https://docs.google.com/uc?export=download&id=${fileId}`;
     }
   }
   
@@ -46,11 +48,22 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
     // Extract file ID from various Google Drive URL formats
     const fileIdMatch = url.match(/[-\w]{25,}/);
     if (fileIdMatch && fileIdMatch[0]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[0]}&sz=w1000`;
+      const fileId = fileIdMatch[0];
+      console.log('Extracted Google Drive image ID:', fileId);
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
     }
   }
   
   return url;
+};
+
+/**
+ * Get direct download link for Google Drive file
+ * @param fileId Google Drive file ID
+ * @returns Direct download URL
+ */
+export const getGoogleDriveDownloadLink = (fileId: string): string => {
+  return `https://docs.google.com/uc?export=download&id=${fileId}`;
 };
 
 /**
