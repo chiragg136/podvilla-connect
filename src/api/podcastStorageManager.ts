@@ -1,28 +1,28 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { handlePodcastUpload } from './podcastUploadHandler';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { checkSupabaseAuth, getCurrentUserId } from "@/utils/mediaUtils";
+import { savePodcastMetadata, saveEpisodeMetadata, getStorageConfig, setStorageConfig } from "@/utils/databaseUtils";
 
 /**
  * Get the current storage preference
- * @returns Storage preference ('supabase')
+ * @returns Storage preference object
  */
-export const getStoragePreference = (): 'supabase' => {
-  // Always use Supabase for storage
-  return 'supabase';
+export const getStoragePreference = () => {
+  return getStorageConfig();
 };
 
 /**
  * Set storage preference
  * @param preference Storage preference to set
  */
-export const setStoragePreference = (preference: 'supabase') => {
-  localStorage.setItem('storagePreference', preference);
+export const setStoragePreference = (preference: 'supabase' | 'neon') => {
+  setStorageConfig({ metadataStorage: preference });
+  toast.success(`Storage preference updated to ${preference}`);
 };
 
 /**
- * Upload podcast to Supabase storage
+ * Upload podcast to storage
  * @param formData Form data with podcast files and metadata
  * @param userId User ID
  * @param onProgress Progress callback
@@ -34,7 +34,7 @@ export const uploadPodcast = async (
   onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; podcastId?: string; error?: string }> => {
   try {
-    console.log("Starting podcast upload with Supabase storage");
+    console.log("Starting podcast upload process");
     
     // Check if user is authenticated
     const { data: { session } } = await supabase.auth.getSession();
@@ -93,7 +93,7 @@ export const uploadPodcast = async (
     const actualUserId = session.user.id;
     console.log("Uploading with authenticated user ID:", actualUserId);
     
-    // Upload cover image first
+    // Upload cover image first (always using Supabase Storage for files)
     const { data: coverData, error: coverError } = await supabase.storage
       .from('covers')
       .upload(coverFileName, coverImageFile, {
@@ -111,7 +111,7 @@ export const uploadPodcast = async (
     
     if (onProgress) onProgress(40);
     
-    // Upload audio file
+    // Upload audio file (always using Supabase Storage for files)
     const { data: audioData, error: audioError } = await supabase.storage
       .from('podcasts')
       .upload(audioFileName, audioFile, {
@@ -131,28 +131,24 @@ export const uploadPodcast = async (
       };
     }
     
-    if (onProgress) onProgress(80);
+    if (onProgress) onProgress(70);
     
     // Get public URLs for the uploaded files
     const { data: coverUrl } = supabase.storage.from('covers').getPublicUrl(coverFileName);
     const { data: audioUrl } = supabase.storage.from('podcasts').getPublicUrl(audioFileName);
     
-    // Insert podcast metadata into database
-    const { data: podcast, error: podcastError } = await supabase
-      .from('podcasts')
-      .insert({
-        id: podcastId,
-        title,
-        description,
-        category,
-        cover_url: coverUrl.publicUrl,
-        user_id: actualUserId // Use the authenticated user ID, not the passed userId
-      })
-      .select()
-      .single();
+    // Save podcast metadata to selected database (Supabase or Neon)
+    const podcastResult = await savePodcastMetadata({
+      id: podcastId,
+      title,
+      description,
+      category,
+      cover_url: coverUrl.publicUrl,
+      user_id: actualUserId
+    });
     
-    if (podcastError) {
-      console.error("Podcast metadata insert error:", podcastError);
+    if (!podcastResult.success) {
+      console.error("Podcast metadata save error:", podcastResult.error);
       
       // Clean up: Delete the uploaded files
       await supabase.storage.from('covers').remove([coverFileName]);
@@ -160,42 +156,42 @@ export const uploadPodcast = async (
       
       return { 
         success: false, 
-        error: `Failed to save podcast metadata: ${podcastError.message}` 
+        error: `Failed to save podcast metadata: ${podcastResult.error}` 
       };
     }
     
-    // Insert episode metadata into database
-    const { data: episode, error: episodeError } = await supabase
-      .from('episodes')
-      .insert({
-        id: episodeId,
-        podcast_id: podcastId,
-        title: episodeTitle,
-        description: episodeDescription,
-        audio_url: audioUrl.publicUrl,
-        duration: 0 // Will be updated later when the audio is loaded
-      })
-      .select()
-      .single();
+    if (onProgress) onProgress(85);
     
-    if (episodeError) {
-      console.error("Episode metadata insert error:", episodeError);
+    // Save episode metadata to selected database (Supabase or Neon)
+    const episodeResult = await saveEpisodeMetadata({
+      id: episodeId,
+      podcast_id: podcastId,
+      title: episodeTitle,
+      description: episodeDescription,
+      audio_url: audioUrl.publicUrl,
+      duration: 0 // Will be updated later when the audio is loaded
+    });
+    
+    if (!episodeResult.success) {
+      console.error("Episode metadata save error:", episodeResult.error);
       
       // Clean up: Delete the uploaded files and podcast metadata
       await supabase.storage.from('covers').remove([coverFileName]);
       await supabase.storage.from('podcasts').remove([audioFileName]);
+      
+      // Attempt to delete podcast metadata (this assumes we're still using Supabase)
       await supabase.from('podcasts').delete().eq('id', podcastId);
       
       return { 
         success: false, 
-        error: `Failed to save episode metadata: ${episodeError.message}` 
+        error: `Failed to save episode metadata: ${episodeResult.error}` 
       };
     }
     
     // Set final progress
     if (onProgress) onProgress(100);
     
-    // Store local cache of uploaded podcasts
+    // Store local cache of uploaded podcasts (as a fallback)
     try {
       const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
       localPodcasts.push({

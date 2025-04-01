@@ -1,13 +1,16 @@
 
 import { useState, ChangeEvent } from 'react';
 import { toast } from 'sonner';
-import { Upload, File, X } from 'lucide-react';
+import { Upload, File, X, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { podcastService } from '@/services/podcastService';
 import { useUser } from '@/contexts/UserContext';
+import { uploadPodcast, setStoragePreference, getStoragePreference } from '@/api/podcastStorageManager';
 
 const PodcastUpload = () => {
   const { user } = useUser();
@@ -19,10 +22,19 @@ const PodcastUpload = () => {
   const [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null);
   const [selectedCoverImage, setSelectedCoverImage] = useState<File | null>(null);
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  const [episodeTitle, setEpisodeTitle] = useState('');
+  const [episodeDescription, setEpisodeDescription] = useState('');
+  const [storageType, setStorageType] = useState<'supabase' | 'neon'>('supabase');
 
   const categories = [
     'Technology', 'Business', 'Arts', 'Science', 'Health', 'Education', 'News', 'Entertainment'
   ];
+
+  const handleStorageChange = (value: 'supabase' | 'neon') => {
+    setStorageType(value);
+    setStoragePreference(value);
+    toast.success(`Storage preference set to ${value}`);
+  };
 
   const handleAudioFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -62,7 +74,7 @@ const PodcastUpload = () => {
       return;
     }
 
-    if (!title || !description || !category || !selectedAudioFile || !selectedCoverImage) {
+    if (!title || !description || !category || !selectedAudioFile || !selectedCoverImage || !episodeTitle) {
       toast.error('Please fill in all fields and upload both audio and cover image');
       return;
     }
@@ -70,61 +82,74 @@ const PodcastUpload = () => {
     setIsUploading(true);
     setUploadProgress(0);
 
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 95) {
-          clearInterval(progressInterval);
-          return 95;
-        }
-        return prev + 5;
-      });
-    }, 500);
-
     try {
-      // Simulate podcast upload
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('category', category);
+      formData.append('audio', selectedAudioFile);
+      formData.append('coverImage', selectedCoverImage);
+      formData.append('episodeTitle', episodeTitle);
+      formData.append('episodeDescription', episodeDescription || description);
 
-      // Complete upload
-      setUploadProgress(100);
-      clearInterval(progressInterval);
+      toast.info(`Uploading podcast with ${storageType} metadata storage...`);
+      
+      const result = await uploadPodcast(
+        formData, 
+        user.id,
+        (progress) => setUploadProgress(progress)
+      );
 
-      // Save podcast data (in a real app, this would save to a database)
-      const podcastData = {
-        title,
-        description,
-        category,
-        audioFileName: selectedAudioFile.name,
-        coverImageName: selectedCoverImage.name,
-        creator: user.name,
-        creatorId: user.id,
-        uploadDate: new Date().toISOString(),
-      };
-
-      console.log('Uploaded podcast:', podcastData);
-
-      toast.success('Podcast uploaded successfully!');
-
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setCategory('Technology');
-      setSelectedAudioFile(null);
-      setSelectedCoverImage(null);
-      setCoverImagePreview(null);
+      if (result.success) {
+        toast.success('Podcast uploaded successfully!');
+        
+        // Reset form
+        setTitle('');
+        setDescription('');
+        setCategory('Technology');
+        setSelectedAudioFile(null);
+        setSelectedCoverImage(null);
+        setCoverImagePreview(null);
+        setEpisodeTitle('');
+        setEpisodeDescription('');
+      } else {
+        toast.error(result.error || 'Failed to upload podcast');
+      }
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to upload podcast. Please try again.');
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
-      clearInterval(progressInterval);
     }
   };
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold text-primary-900">Upload New Podcast</h2>
+      
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+        <h3 className="flex items-center text-sm font-medium text-blue-800 mb-2">
+          <Database className="h-4 w-4 mr-1" />
+          Storage Configuration
+        </h3>
+        <RadioGroup 
+          defaultValue={storageType} 
+          onValueChange={(value) => handleStorageChange(value as 'supabase' | 'neon')}
+          className="flex space-x-4"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="supabase" id="supabase" />
+            <Label htmlFor="supabase">Supabase</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="neon" id="neon" />
+            <Label htmlFor="neon">Neon PostgreSQL</Label>
+          </div>
+        </RadioGroup>
+        <p className="text-xs text-blue-600 mt-1">
+          Files will always be stored in Supabase Storage. This setting controls where metadata is stored.
+        </p>
+      </div>
       
       <div className="space-y-4">
         <div>
@@ -139,18 +164,32 @@ const PodcastUpload = () => {
         </div>
         
         <div>
+          <Label htmlFor="episodeTitle">Episode Title</Label>
+          <Input 
+            id="episodeTitle" 
+            value={episodeTitle}
+            onChange={(e) => setEpisodeTitle(e.target.value)}
+            placeholder="Enter episode title"
+            disabled={isUploading}
+          />
+        </div>
+        
+        <div>
           <Label htmlFor="category">Category</Label>
-          <select 
-            id="category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          <Select 
+            value={category} 
+            onValueChange={setCategory}
             disabled={isUploading}
           >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         
         <div>
@@ -163,6 +202,21 @@ const PodcastUpload = () => {
             rows={4}
             disabled={isUploading}
           />
+        </div>
+        
+        <div>
+          <Label htmlFor="episodeDescription">Episode Description</Label>
+          <Textarea 
+            id="episodeDescription"
+            value={episodeDescription}
+            onChange={(e) => setEpisodeDescription(e.target.value)}
+            placeholder="Enter episode description (optional)"
+            rows={3}
+            disabled={isUploading}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            If left blank, the podcast description will be used.
+          </p>
         </div>
         
         <div>
@@ -252,7 +306,7 @@ const PodcastUpload = () => {
         
         <Button
           onClick={handleUpload}
-          disabled={isUploading || !title || !description || !selectedAudioFile || !selectedCoverImage}
+          disabled={isUploading || !title || !description || !selectedAudioFile || !selectedCoverImage || !episodeTitle}
           className="w-full bg-primary-900"
         >
           {isUploading ? 'Uploading...' : 'Upload Podcast'}
