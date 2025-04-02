@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -13,8 +12,11 @@ import { supabase } from "@/integrations/supabase/client";
 export const getPlayableAudioUrl = (url: string | undefined): string => {
   if (!url) return '';
   
-  // For Supabase storage URLs, return as is
+  console.log('Processing audio URL:', url);
+  
+  // For Supabase storage URLs, check if it needs any adjustments
   if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/')) {
+    console.log('Using Supabase storage URL:', url);
     return url;
   }
   
@@ -32,6 +34,20 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
     }
   }
   
+  // Handle data URLs (for local testing/development)
+  if (url.startsWith('data:audio/')) {
+    console.log('Using data URL for audio');
+    return url;
+  }
+  
+  // For relative URLs, ensure they have the correct base path
+  if (url.startsWith('/')) {
+    const basePath = window.location.origin;
+    console.log('Converting relative URL to absolute:', `${basePath}${url}`);
+    return `${basePath}${url}`;
+  }
+  
+  console.log('Using original URL:', url);
   return url;
 };
 
@@ -59,6 +75,17 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
       // Use a direct media URL format that's more reliable for images
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
+  }
+  
+  // Handle data URLs
+  if (url.startsWith('data:image/')) {
+    return url;
+  }
+  
+  // For relative URLs, ensure they have the correct base path
+  if (url.startsWith('/')) {
+    const basePath = window.location.origin;
+    return `${basePath}${url}`;
   }
   
   return url;
@@ -147,4 +174,51 @@ export const getCurrentUserId = async (): Promise<string | null> => {
     console.error('Error getting current user ID:', error);
     return null;
   }
+};
+
+/**
+ * Verify if an audio URL is playable by trying to load it
+ * @param url URL of the audio file to test
+ * @returns Promise that resolves with a boolean indicating if the audio is playable
+ */
+export const isAudioPlayable = async (url: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    let timeoutId: number;
+    
+    const cleanup = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      audio.removeEventListener('canplaythrough', onSuccess);
+      audio.removeEventListener('error', onError);
+      audio.src = '';
+      audio.load();
+    };
+    
+    const onSuccess = () => {
+      console.log('Audio is playable:', url);
+      cleanup();
+      resolve(true);
+    };
+    
+    const onError = (e: ErrorEvent) => {
+      console.error('Audio playback error:', e);
+      cleanup();
+      resolve(false);
+    };
+    
+    timeoutId = window.setTimeout(() => {
+      console.warn('Audio load timeout:', url);
+      cleanup();
+      resolve(false);
+    }, 8000);
+    
+    audio.addEventListener('canplaythrough', onSuccess);
+    audio.addEventListener('error', onError);
+    
+    // Process the URL first to ensure it's in a playable format
+    const processedUrl = getPlayableAudioUrl(url);
+    console.log('Testing audio playability:', processedUrl);
+    audio.src = processedUrl;
+    audio.load();
+  });
 };

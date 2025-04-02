@@ -3,7 +3,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic,
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
-import { getPlayableAudioUrl, getDisplayableImageUrl } from '@/utils/mediaUtils';
+import { getPlayableAudioUrl, getDisplayableImageUrl, isAudioPlayable } from '@/utils/mediaUtils';
 
 interface PlayerProps {
   isVisible?: boolean;
@@ -84,6 +84,7 @@ const Player = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [audioSource, setAudioSource] = useState<string | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState<string | null>(null);
+  const [audioLoadError, setAudioLoadError] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -112,6 +113,16 @@ const Player = ({
       setCurrentTime(0);
     });
     
+    audioRef.current.addEventListener('error', (e) => {
+      console.error('Player: Audio error', e);
+      setIsPlaying(false);
+      setAudioLoadError(true);
+      toast({
+        title: "Playback Error",
+        description: "Unable to play this audio. The file may be unavailable or in an unsupported format.",
+      });
+    });
+    
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -122,19 +133,23 @@ const Player = ({
   }, []);
 
   useEffect(() => {
+    setAudioLoadError(false);
     if (propAudioUrl) {
+      console.log("Player: Setting audio source from prop", propAudioUrl);
       setAudioSource(propAudioUrl);
       return;
     }
     
     if (episodeId && episodeData[episodeId]) {
       const audioSrc = episodeData[episodeId].audioUrl;
+      console.log("Player: Setting audio source from episodeData", audioSrc);
       setAudioSource(audioSrc);
       return;
     }
     
     if (podcastId) {
       const dummySource = `https://example.com/podcast/${podcastId}/audio.mp3`;
+      console.log("Player: Setting dummy audio source", dummySource);
       setAudioSource(dummySource);
     }
   }, [podcastId, episodeId, propAudioUrl]);
@@ -144,8 +159,18 @@ const Player = ({
       const playableUrl = getPlayableAudioUrl(audioSource);
       console.log("Player: Processing audio URL", { original: audioSource, processed: playableUrl });
       setProcessedAudioUrl(playableUrl);
+      
+      isAudioPlayable(playableUrl).then(playable => {
+        if (!playable) {
+          setAudioLoadError(true);
+          toast({
+            title: "Playback Warning",
+            description: "This audio file might not play correctly. Please check the file format.",
+          });
+        }
+      });
     }
-  }, [audioSource]);
+  }, [audioSource, toast]);
 
   useEffect(() => {
     if (audioRef.current && processedAudioUrl) {
@@ -172,12 +197,16 @@ const Player = ({
         audioRef.current.play().catch(error => {
           console.error('Failed to play audio:', error);
           setIsPlaying(false);
+          toast({
+            title: "Playback Error",
+            description: "Could not play this audio. Please try again.",
+          });
         });
       } else {
         audioRef.current.pause();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, toast]);
 
   useEffect(() => {
     if (podcastId && podcastData[podcastId as keyof typeof podcastData]) {
@@ -211,6 +240,13 @@ const Player = ({
   }, [episodeId]);
 
   const togglePlay = () => {
+    if (audioLoadError) {
+      toast({
+        title: "Cannot Play",
+        description: "This audio file cannot be played. Please check the file or try another podcast.",
+      });
+      return;
+    }
     setIsPlaying(!isPlaying);
   };
 
@@ -327,6 +363,7 @@ const Player = ({
                 size="icon"
                 variant="ghost"
                 className="text-primary-600 hover:text-primary-900"
+                disabled={audioLoadError}
               >
                 <SkipBack className="h-5 w-5" />
               </Button>
@@ -334,6 +371,7 @@ const Player = ({
                 onClick={togglePlay}
                 size="icon"
                 className="bg-primary-900 hover:bg-primary-800 text-white rounded-full h-10 w-10"
+                disabled={audioLoadError}
               >
                 {isPlaying ? (
                   <Pause className="h-5 w-5" />
@@ -345,6 +383,7 @@ const Player = ({
                 size="icon"
                 variant="ghost"
                 className="text-primary-600 hover:text-primary-900"
+                disabled={audioLoadError}
               >
                 <SkipForward className="h-5 w-5" />
               </Button>
@@ -361,6 +400,7 @@ const Player = ({
                 step={0.01}
                 onValueChange={handleProgressChange}
                 className="flex-1"
+                disabled={audioLoadError}
               />
               <span className="text-xs text-primary-500 w-8">
                 {formatTime(totalDuration)}
@@ -375,6 +415,7 @@ const Player = ({
                 size="icon"
                 variant="ghost"
                 className="text-primary-600 hover:text-primary-900"
+                disabled={audioLoadError}
               >
                 {isMuted ? (
                   <VolumeX className="h-4 w-4" />
@@ -392,6 +433,7 @@ const Player = ({
                   if (value[0] > 0) setIsMuted(false);
                 }}
                 className="w-24"
+                disabled={audioLoadError}
               />
             </div>
             <Button

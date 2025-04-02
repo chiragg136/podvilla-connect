@@ -4,7 +4,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
-import { getPlayableAudioUrl } from '@/utils/mediaUtils';
+import { getPlayableAudioUrl, isAudioPlayable } from '@/utils/mediaUtils';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -22,14 +22,27 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [processedUrl, setProcessedUrl] = useState('');
   const [loadAttempts, setLoadAttempts] = useState(0);
+  const [isPlayable, setIsPlayable] = useState(true);
 
   useEffect(() => {
     // Reset load attempts when URL changes
     setLoadAttempts(0);
+    setIsLoading(true);
+    setIsPlayable(true);
     
     // Process the URL to make it playable
     const playableUrl = getPlayableAudioUrl(audioUrl);
     setProcessedUrl(playableUrl);
+    console.log('AudioPlayer: Using processed URL', playableUrl);
+    
+    // Check if the audio is playable
+    isAudioPlayable(playableUrl).then(playable => {
+      setIsPlayable(playable);
+      if (!playable) {
+        setIsLoading(false);
+        toast.error('This audio file cannot be played. It may be in an unsupported format or inaccessible.');
+      }
+    });
     
     // Create new audio element to avoid stale references
     if (audioRef.current) {
@@ -39,8 +52,6 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     
     const audio = new Audio();
     audioRef.current = audio;
-    
-    console.log("AudioPlayer: Using URL", playableUrl);
     
     audio.addEventListener('loadedmetadata', () => {
       console.log("AudioPlayer: Audio metadata loaded", { duration: audio.duration });
@@ -67,33 +78,42 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     audio.addEventListener('error', (e) => {
       console.error('Audio error:', e);
       setIsLoading(false);
+      setIsPlayable(false);
       
       // Try again with a different URL format if we haven't tried too many times
-      if (loadAttempts < 3 && audioUrl.includes('drive.google.com')) {
+      if (loadAttempts < 3) {
         setLoadAttempts(prev => prev + 1);
-        const fileIdMatch = audioUrl.match(/[-\w]{25,}/);
-        if (fileIdMatch && fileIdMatch[0]) {
-          const fileId = fileIdMatch[0];
-          let alternativeUrl;
-          
-          // Try different URL formats for Google Drive
-          if (loadAttempts === 0) {
-            alternativeUrl = `https://docs.google.com/uc?export=download&id=${fileId}`;
-          } else if (loadAttempts === 1) {
-            alternativeUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-          } else {
-            // Try direct link as a last resort
-            alternativeUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-          }
-          
-          console.log(`Retrying with alternative URL (attempt ${loadAttempts}):`, alternativeUrl);
-          audio.src = alternativeUrl;
-          audio.load();
-          return;
+        
+        let alternativeUrl = playableUrl;
+        
+        // If it's a Supabase URL, try direct access
+        if (playableUrl.includes('supabase.co')) {
+          // No alternative needed, just retry
+          console.log('Retrying Supabase URL');
         }
+        // If it's a Google Drive URL, try alternative formats
+        else if (audioUrl.includes('drive.google.com')) {
+          const fileIdMatch = audioUrl.match(/[-\w]{25,}/);
+          if (fileIdMatch && fileIdMatch[0]) {
+            const fileId = fileIdMatch[0];
+            
+            if (loadAttempts === 0) {
+              alternativeUrl = `https://docs.google.com/uc?export=download&id=${fileId}`;
+            } else if (loadAttempts === 1) {
+              alternativeUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            } else {
+              alternativeUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+            }
+          }
+        }
+        
+        console.log(`Retrying with alternative URL (attempt ${loadAttempts}):`, alternativeUrl);
+        audio.src = alternativeUrl;
+        audio.load();
+        return;
       }
       
-      toast.error('Error playing audio. The file may not be accessible.');
+      toast.error('Unable to play this audio file. Please check that the file exists and is in a supported format.');
     });
     
     // Set initial volume
@@ -130,6 +150,10 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   }, [volume, isMuted]);
 
   const togglePlay = () => {
+    if (!isPlayable) {
+      toast.error('This audio file cannot be played.');
+      return;
+    }
     setIsPlaying(!isPlaying);
   };
 
@@ -171,6 +195,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
                 audioRef.current.currentTime = Math.max(0, currentTime - 15);
               }
             }}
+            disabled={!isPlayable}
           >
             <SkipBack className="h-5 w-5" />
           </Button>
@@ -178,7 +203,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
           <Button
             onClick={togglePlay}
             size="icon"
-            disabled={isLoading}
+            disabled={isLoading || !isPlayable}
             className="bg-primary-900 hover:bg-primary-800 text-white rounded-full h-10 w-10 flex items-center justify-center"
           >
             {isLoading ? (
@@ -199,6 +224,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
                 audioRef.current.currentTime = Math.min(duration, currentTime + 15);
               }
             }}
+            disabled={!isPlayable}
           >
             <SkipForward className="h-5 w-5" />
           </Button>
@@ -214,7 +240,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
             max={duration || 100}
             step={0.01}
             onValueChange={handleSeek}
-            disabled={isLoading}
+            disabled={isLoading || !isPlayable}
             className="flex-1"
           />
           <span className="text-xs text-primary-500 w-8">
@@ -228,6 +254,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
             size="icon"
             variant="ghost"
             className="text-primary-600 hover:text-primary-900"
+            disabled={!isPlayable}
           >
             {isMuted ? (
               <VolumeX className="h-4 w-4" />
@@ -242,6 +269,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
             step={1}
             onValueChange={handleVolumeChange}
             className="w-24"
+            disabled={!isPlayable}
           />
         </div>
       </div>
