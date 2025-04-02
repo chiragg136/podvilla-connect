@@ -35,7 +35,8 @@ const Profile = () => {
     try {
       // Get user's podcasts from Supabase
       if (user) {
-        const podcasts = await getUserPodcasts(user.id);
+        // Fix: Remove the user.id argument from the getUserPodcasts call
+        const podcasts = await getUserPodcasts();
         setUserPodcasts(podcasts);
       }
       
