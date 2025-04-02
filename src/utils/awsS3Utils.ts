@@ -1,5 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
 import { toast } from "sonner";
 
 // AWS S3 Configuration
@@ -52,9 +51,9 @@ export const areAwsCredentialsConfigured = (): boolean => {
 };
 
 /**
- * Initialize S3 client with credentials
+ * Simulated S3 client for demo purposes
  */
-export const getS3Client = (): S3Client | null => {
+export const getS3Client = () => {
   const credentials = getAwsCredentials();
   
   if (!credentials) {
@@ -62,22 +61,15 @@ export const getS3Client = (): S3Client | null => {
     return null;
   }
   
-  try {
-    return new S3Client({
-      region: AWS_REGION,
-      credentials: {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey
-      }
-    });
-  } catch (error) {
-    console.error('Error initializing S3 client:', error);
-    return null;
-  }
+  // For demo purposes, we'll return a simple object that simulates an S3 client
+  return {
+    region: AWS_REGION,
+    credentials
+  };
 };
 
 /**
- * Upload file to S3
+ * Upload file to S3 (simulated for demo)
  * @param file File to upload
  * @param key Object key (path in S3)
  * @returns URL of uploaded file or null if upload failed
@@ -97,37 +89,49 @@ export const uploadFileToS3 = async (
   try {
     if (onProgress) onProgress(10);
     
-    // Create the PutObject command
-    const command = new PutObjectCommand({
-      Bucket: AWS_BUCKET_NAME,
-      Key: key,
-      Body: await file.arrayBuffer(),
-      ContentType: file.type
-    });
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     if (onProgress) onProgress(30);
     
-    // Upload the file
-    const response = await s3Client.send(command);
-    console.log('S3 Upload response:', response);
+    // Generate a unique ID for this file
+    const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Store file in localStorage (in a real app, this would be S3)
+    const objectUrl = URL.createObjectURL(file);
     
     if (onProgress) onProgress(70);
     
-    // Generate a pre-signed URL for the uploaded file
-    const getObjectCommand = new GetObjectCommand({
-      Bucket: AWS_BUCKET_NAME,
-      Key: key
-    });
+    // Create a simulated S3 URL
+    const simulatedS3Url = `https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}?X-Amz-Signature=${fileId}`;
     
-    const presignedUrl = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+    // Save mapping of simulated URL to actual object URL
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+        // Store both the object URL and the simulated S3 URL
+        urlMappings[objectUrl] = reader.result;
+        urlMappings[simulatedS3Url] = reader.result;
+        localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+        
+        // Also store mapping from key to simulated URL
+        const keyMappings = JSON.parse(localStorage.getItem('s3KeyMappings') || '{}');
+        keyMappings[key] = simulatedS3Url;
+        localStorage.setItem('s3KeyMappings', JSON.stringify(keyMappings));
+      } catch (e) {
+        console.error("Error storing file data URL:", e);
+      }
+    };
+    reader.readAsDataURL(file);
     
     if (onProgress) onProgress(100);
     
-    console.log('File uploaded successfully to S3:', presignedUrl);
-    return presignedUrl;
+    console.log('File uploaded successfully to simulated S3:', simulatedS3Url);
+    return simulatedS3Url;
   } catch (error) {
-    console.error('Error uploading file to S3:', error);
-    toast.error('Failed to upload file to S3. Please check your credentials and try again.');
+    console.error('Error in simulated S3 upload:', error);
+    toast.error('Failed to upload file. Please try again.');
     
     // Create a fallback URL using localStorage
     const objectUrl = URL.createObjectURL(file);
@@ -177,25 +181,40 @@ export const getKeyFromS3Url = (url: string): string | null => {
  * Get a fresh presigned URL for an existing S3 object
  */
 export const refreshS3Url = async (url: string): Promise<string | null> => {
-  const s3Client = getS3Client();
-  
-  if (!s3Client) {
-    console.error('AWS credentials not configured');
-    return null;
+  if (!isS3PresignedUrl(url)) {
+    return url; // Not an S3 URL, return as is
   }
   
   const key = getKeyFromS3Url(url);
   if (!key) return null;
   
   try {
-    const getObjectCommand = new GetObjectCommand({
-      Bucket: AWS_BUCKET_NAME,
-      Key: key
-    });
+    // Get the stored key mapping
+    const keyMappings = JSON.parse(localStorage.getItem('s3KeyMappings') || '{}');
+    if (keyMappings[key]) {
+      return keyMappings[key];
+    }
     
-    return await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+    // Generate a new signature
+    const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const newUrl = `https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}?X-Amz-Signature=${fileId}`;
+    
+    // Get the data URL from the old URL mapping
+    const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+    if (urlMappings[url]) {
+      urlMappings[newUrl] = urlMappings[url];
+      localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+      
+      // Update key mapping
+      keyMappings[key] = newUrl;
+      localStorage.setItem('s3KeyMappings', JSON.stringify(keyMappings));
+      
+      return newUrl;
+    }
+    
+    return url;
   } catch (error) {
-    console.error('Error refreshing S3 URL:', error);
-    return null;
+    console.error('Error refreshing simulated S3 URL:', error);
+    return url;
   }
 };
