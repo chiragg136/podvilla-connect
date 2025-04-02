@@ -2,16 +2,17 @@
 import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Upload, File, X, Music } from 'lucide-react';
+import { Upload, File, X, Music, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import { useUser } from '@/contexts/UserContext';
 import { uploadPodcast } from '@/api/podcastStorageManager';
+import { clearStoredMedia } from '@/utils/awsS3Utils';
 
 const PodcastUpload = () => {
   const navigate = useNavigate();
@@ -79,6 +80,16 @@ const PodcastUpload = () => {
   const clearCoverImage = () => {
     setSelectedCoverImage(null);
     setCoverImagePreview(null);
+  };
+
+  const handleClearStoredMedia = () => {
+    const confirmed = window.confirm('Are you sure you want to clear all stored media? This will remove all uploaded podcasts and episodes.');
+    if (confirmed) {
+      const success = clearStoredMedia();
+      if (success) {
+        toast.success('All stored media has been cleared');
+      }
+    }
   };
 
   const handleUpload = async () => {
@@ -350,6 +361,17 @@ const PodcastUpload = () => {
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="flex justify-end border-t pt-4">
+              <Button
+                variant="destructive"
+                onClick={handleClearStoredMedia}
+                className="flex items-center gap-2"
+                disabled={isUploading}
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear All Stored Media
+              </Button>
+            </CardFooter>
           </Card>
         </div>
       </main>
