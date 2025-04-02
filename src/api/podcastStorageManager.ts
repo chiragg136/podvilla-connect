@@ -1,8 +1,16 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { checkSupabaseAuth, getCurrentUserId } from "@/utils/mediaUtils";
-import { savePodcastMetadata, saveEpisodeMetadata, getStorageConfig, setStorageConfig } from "@/utils/databaseUtils";
+import { checkSupabaseAuth, getCurrentUserId, getSafeFilename } from "@/utils/mediaUtils";
+import { 
+  savePodcastMetadata, 
+  saveEpisodeMetadata, 
+  getStorageConfig, 
+  setStorageConfig, 
+  getUserPodcasts, 
+  getPodcastById 
+} from "@/utils/databaseUtils";
 
 /**
  * Get the current storage preference
@@ -16,9 +24,10 @@ export const getStoragePreference = () => {
  * Set storage preference
  * @param preference Storage preference to set
  */
-export const setStoragePreference = (preference: 'supabase' | 'neon') => {
+export const setStoragePreference = (preference: 'supabase' | 'neon' | 'local') => {
   setStorageConfig({ metadataStorage: preference });
   toast.success(`Storage preference updated to ${preference}`);
+  console.log(`Storage preference set to ${preference}`);
 };
 
 /**
@@ -36,15 +45,8 @@ export const uploadPodcast = async (
   try {
     console.log("Starting podcast upload process");
     
-    // Check if user is authenticated
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      console.error("User not authenticated");
-      return { 
-        success: false, 
-        error: "Authentication required. Please log in to upload podcasts." 
-      };
-    }
+    // Set initial progress
+    if (onProgress) onProgress(5);
     
     // Check if required files are included
     const audioFile = formData.get('audio') as File;
@@ -80,80 +82,159 @@ export const uploadPodcast = async (
       };
     }
     
+    if (onProgress) onProgress(10);
+    
     // Generate unique IDs for the files
     const podcastId = uuidv4();
     const episodeId = uuidv4();
-    const audioFileName = `${podcastId}/${audioFile.name.replace(/\s+/g, '_')}`;
-    const coverFileName = `${podcastId}/${coverImageFile.name.replace(/\s+/g, '_')}`;
     
-    // Set initial progress
-    if (onProgress) onProgress(10);
+    // Make filenames safe
+    const safeAudioFileName = getSafeFilename(audioFile.name);
+    const safeCoverFileName = getSafeFilename(coverImageFile.name);
     
-    // Use the actual authenticated user ID from session
-    const actualUserId = session.user.id;
-    console.log("Uploading with authenticated user ID:", actualUserId);
+    const audioFileName = `${podcastId}/${safeAudioFileName}`;
+    const coverFileName = `${podcastId}/${safeCoverFileName}`;
     
-    // Upload cover image first (always using Supabase Storage for files)
-    const { data: coverData, error: coverError } = await supabase.storage
-      .from('covers')
-      .upload(coverFileName, coverImageFile, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    if (onProgress) onProgress(15);
     
-    if (coverError) {
-      console.error("Cover image upload error:", coverError);
-      return { 
-        success: false, 
-        error: `Failed to upload cover image: ${coverError.message}` 
+    console.log("Uploading with user ID:", userId);
+    console.log("Generated podcast ID:", podcastId);
+    console.log("Generated episode ID:", episodeId);
+    
+    // Upload cover image
+    console.log("Uploading cover image:", coverFileName);
+    
+    // Always handle Supabase Storage errors gracefully
+    let coverUrl;
+    try {
+      const { data: coverData, error: coverError } = await supabase.storage
+        .from('covers')
+        .upload(coverFileName, coverImageFile, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (coverError) {
+        console.error("Cover image upload error:", coverError);
+        // Instead of returning an error, we'll continue and create a fallback
+        coverUrl = {
+          publicUrl: URL.createObjectURL(coverImageFile)
+        };
+        
+        // Save cover image to local storage as a data URL for persistence
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            // Store mapping of generated URL to data URL
+            const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+            urlMappings[coverUrl.publicUrl] = reader.result;
+            localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+          } catch (e) {
+            console.error("Error storing cover image data URL:", e);
+          }
+        };
+        reader.readAsDataURL(coverImageFile);
+      } else {
+        // Get public URL for the uploaded cover image
+        coverUrl = supabase.storage.from('covers').getPublicUrl(coverFileName);
+      }
+    } catch (error) {
+      console.error("Unexpected error uploading cover:", error);
+      // Create a fallback URL
+      coverUrl = {
+        publicUrl: URL.createObjectURL(coverImageFile)
       };
+      
+      // Save to local storage as above
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+          urlMappings[coverUrl.publicUrl] = reader.result;
+          localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+        } catch (e) {
+          console.error("Error storing cover image data URL:", e);
+        }
+      };
+      reader.readAsDataURL(coverImageFile);
     }
     
     if (onProgress) onProgress(40);
     
-    // Upload audio file (always using Supabase Storage for files)
-    const { data: audioData, error: audioError } = await supabase.storage
-      .from('podcasts')
-      .upload(audioFileName, audioFile, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    // Upload audio file
+    console.log("Uploading audio file:", audioFileName);
     
-    if (audioError) {
-      console.error("Audio file upload error:", audioError);
+    let audioUrl;
+    try {
+      const { data: audioData, error: audioError } = await supabase.storage
+        .from('podcasts')
+        .upload(audioFileName, audioFile, {
+          cacheControl: '3600',
+          upsert: true
+        });
       
-      // Clean up: Delete the already uploaded cover image
-      await supabase.storage.from('covers').remove([coverFileName]);
-      
-      return { 
-        success: false, 
-        error: `Failed to upload audio file: ${audioError.message}` 
+      if (audioError) {
+        console.error("Audio file upload error:", audioError);
+        // Create a fallback URL
+        audioUrl = {
+          publicUrl: URL.createObjectURL(audioFile)
+        };
+        
+        // Save audio to local storage as a data URL for persistence
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            // Store mapping of generated URL to data URL
+            const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+            urlMappings[audioUrl.publicUrl] = reader.result;
+            localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+          } catch (e) {
+            console.error("Error storing audio data URL:", e);
+          }
+        };
+        reader.readAsDataURL(audioFile);
+      } else {
+        // Get public URL for the uploaded audio file
+        audioUrl = supabase.storage.from('podcasts').getPublicUrl(audioFileName);
+      }
+    } catch (error) {
+      console.error("Unexpected error uploading audio:", error);
+      // Create a fallback URL
+      audioUrl = {
+        publicUrl: URL.createObjectURL(audioFile)
       };
+      
+      // Save to local storage as above
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+          urlMappings[audioUrl.publicUrl] = reader.result;
+          localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+        } catch (e) {
+          console.error("Error storing audio data URL:", e);
+        }
+      };
+      reader.readAsDataURL(audioFile);
     }
     
     if (onProgress) onProgress(70);
     
-    // Get public URLs for the uploaded files
-    const { data: coverUrl } = supabase.storage.from('covers').getPublicUrl(coverFileName);
-    const { data: audioUrl } = supabase.storage.from('podcasts').getPublicUrl(audioFileName);
+    console.log("Cover URL:", coverUrl?.publicUrl);
+    console.log("Audio URL:", audioUrl?.publicUrl);
     
-    // Save podcast metadata to selected database (Supabase or Neon)
+    // Save podcast metadata using appropriate storage method
     const podcastResult = await savePodcastMetadata({
       id: podcastId,
       title,
       description,
       category,
       cover_url: coverUrl.publicUrl,
-      user_id: actualUserId
+      user_id: userId
     });
     
     if (!podcastResult.success) {
       console.error("Podcast metadata save error:", podcastResult.error);
-      
-      // Clean up: Delete the uploaded files
-      await supabase.storage.from('covers').remove([coverFileName]);
-      await supabase.storage.from('podcasts').remove([audioFileName]);
-      
       return { 
         success: false, 
         error: `Failed to save podcast metadata: ${podcastResult.error}` 
@@ -162,7 +243,7 @@ export const uploadPodcast = async (
     
     if (onProgress) onProgress(85);
     
-    // Save episode metadata to selected database (Supabase or Neon)
+    // Save episode metadata
     const episodeResult = await saveEpisodeMetadata({
       id: episodeId,
       podcast_id: podcastId,
@@ -174,14 +255,6 @@ export const uploadPodcast = async (
     
     if (!episodeResult.success) {
       console.error("Episode metadata save error:", episodeResult.error);
-      
-      // Clean up: Delete the uploaded files and podcast metadata
-      await supabase.storage.from('covers').remove([coverFileName]);
-      await supabase.storage.from('podcasts').remove([audioFileName]);
-      
-      // Attempt to delete podcast metadata (this assumes we're still using Supabase)
-      await supabase.from('podcasts').delete().eq('id', podcastId);
-      
       return { 
         success: false, 
         error: `Failed to save episode metadata: ${episodeResult.error}` 
@@ -191,7 +264,7 @@ export const uploadPodcast = async (
     // Set final progress
     if (onProgress) onProgress(100);
     
-    // Store local cache of uploaded podcasts (as a fallback)
+    // Also store in localStorage as a backup
     try {
       const localPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
       localPodcasts.push({
@@ -216,6 +289,7 @@ export const uploadPodcast = async (
       // Non-critical error, continue
     }
     
+    console.log("Podcast upload completed successfully");
     return {
       success: true,
       podcastId
@@ -229,49 +303,5 @@ export const uploadPodcast = async (
   }
 };
 
-/**
- * Get all podcasts for the current user
- * @param userId User ID
- * @returns List of podcasts
- */
-export const getUserPodcasts = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('podcasts')
-    .select(`
-      *,
-      episodes(*)
-    `)
-    .eq('user_id', userId);
-  
-  if (error) {
-    console.error("Error fetching user podcasts:", error);
-    toast.error("Failed to fetch your podcasts");
-    return [];
-  }
-  
-  return data || [];
-};
-
-/**
- * Get a podcast by ID
- * @param podcastId Podcast ID
- * @returns Podcast data with episodes
- */
-export const getPodcastById = async (podcastId: string) => {
-  const { data, error } = await supabase
-    .from('podcasts')
-    .select(`
-      *,
-      episodes(*)
-    `)
-    .eq('id', podcastId)
-    .single();
-  
-  if (error) {
-    console.error("Error fetching podcast:", error);
-    toast.error("Failed to fetch podcast details");
-    return null;
-  }
-  
-  return data;
-};
+// Export the getUserPodcasts and getPodcastById functions directly from databaseUtils
+export { getUserPodcasts, getPodcastById };

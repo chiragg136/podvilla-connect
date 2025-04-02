@@ -24,13 +24,18 @@ const PodcastUpload = () => {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeDescription, setEpisodeDescription] = useState('');
-  const [storageType, setStorageType] = useState<'supabase' | 'neon'>('supabase');
+  const [storageType, setStorageType] = useState<'supabase' | 'neon' | 'local'>(
+    () => {
+      const preference = getStoragePreference();
+      return preference.metadataStorage;
+    }
+  );
 
   const categories = [
     'Technology', 'Business', 'Arts', 'Science', 'Health', 'Education', 'News', 'Entertainment'
   ];
 
-  const handleStorageChange = (value: 'supabase' | 'neon') => {
+  const handleStorageChange = (value: 'supabase' | 'neon' | 'local') => {
     setStorageType(value);
     setStoragePreference(value);
     toast.success(`Storage preference set to ${value}`);
@@ -69,11 +74,6 @@ const PodcastUpload = () => {
   };
 
   const handleUpload = async () => {
-    if (!user) {
-      toast.error('Please login to upload podcasts');
-      return;
-    }
-
     if (!title || !description || !category || !selectedAudioFile || !selectedCoverImage || !episodeTitle) {
       toast.error('Please fill in all fields and upload both audio and cover image');
       return;
@@ -92,11 +92,14 @@ const PodcastUpload = () => {
       formData.append('episodeTitle', episodeTitle);
       formData.append('episodeDescription', episodeDescription || description);
 
+      // For local storage, we don't need an authenticated user
+      const userId = user?.id || 'anonymous-user';
+      
       toast.info(`Uploading podcast with ${storageType} metadata storage...`);
       
       const result = await uploadPodcast(
         formData, 
-        user.id,
+        userId,
         (progress) => setUploadProgress(progress)
       );
 
@@ -134,7 +137,7 @@ const PodcastUpload = () => {
         </h3>
         <RadioGroup 
           defaultValue={storageType} 
-          onValueChange={(value) => handleStorageChange(value as 'supabase' | 'neon')}
+          onValueChange={(value) => handleStorageChange(value as 'supabase' | 'neon' | 'local')}
           className="flex space-x-4"
         >
           <div className="flex items-center space-x-2">
@@ -145,9 +148,13 @@ const PodcastUpload = () => {
             <RadioGroupItem value="neon" id="neon" />
             <Label htmlFor="neon">Neon PostgreSQL</Label>
           </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="local" id="local" />
+            <Label htmlFor="local">Local Storage</Label>
+          </div>
         </RadioGroup>
         <p className="text-xs text-blue-600 mt-1">
-          Files will always be stored in Supabase Storage. This setting controls where metadata is stored.
+          Files will be stored using browser storage when Supabase is unavailable. This setting controls where metadata is stored.
         </p>
       </div>
       
