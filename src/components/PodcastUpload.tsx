@@ -1,7 +1,7 @@
 
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Upload, File, X, Database } from 'lucide-react';
+import { Upload, File, X, Database, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { podcastService } from '@/services/podcastService';
 import { useUser } from '@/contexts/UserContext';
-import { uploadPodcast, setStoragePreference, getStoragePreference } from '@/api/podcastStorageManager';
+import { uploadPodcast, setStoragePreference, getStoragePreference, StorageType } from '@/api/podcastStorageManager';
+import { areAwsCredentialsConfigured } from '@/utils/awsS3Utils';
+import S3ConfigModal from './S3ConfigModal';
 
 const PodcastUpload = () => {
   const { user } = useUser();
@@ -24,10 +26,11 @@ const PodcastUpload = () => {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [episodeTitle, setEpisodeTitle] = useState('');
   const [episodeDescription, setEpisodeDescription] = useState('');
-  const [storageType, setStorageType] = useState<'supabase' | 'neon' | 'local'>(
+  const [isS3ConfigModalOpen, setIsS3ConfigModalOpen] = useState(false);
+  const [storageType, setStorageType] = useState<StorageType>(
     () => {
       const preference = getStoragePreference();
-      return preference.metadataStorage;
+      return preference.filesStorage === 's3' ? 's3' : preference.metadataStorage;
     }
   );
 
@@ -35,10 +38,22 @@ const PodcastUpload = () => {
     'Technology', 'Business', 'Arts', 'Science', 'Health', 'Education', 'News', 'Entertainment'
   ];
 
-  const handleStorageChange = (value: 'supabase' | 'neon' | 'local') => {
+  useEffect(() => {
+    // Check if S3 is selected but not configured
+    if (storageType === 's3' && !areAwsCredentialsConfigured()) {
+      setIsS3ConfigModalOpen(true);
+    }
+  }, [storageType]);
+
+  const handleStorageChange = (value: StorageType) => {
     setStorageType(value);
     setStoragePreference(value);
-    toast.success(`Storage preference set to ${value}`);
+    
+    if (value === 's3' && !areAwsCredentialsConfigured()) {
+      setIsS3ConfigModalOpen(true);
+    } else {
+      toast.success(`Storage preference set to ${value}`);
+    }
   };
 
   const handleAudioFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -79,6 +94,12 @@ const PodcastUpload = () => {
       return;
     }
 
+    // Check if S3 is selected but not configured
+    if (storageType === 's3' && !areAwsCredentialsConfigured()) {
+      setIsS3ConfigModalOpen(true);
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -95,7 +116,7 @@ const PodcastUpload = () => {
       // For local storage, we don't need an authenticated user
       const userId = user?.id || 'anonymous-user';
       
-      toast.info(`Uploading podcast with ${storageType} metadata storage...`);
+      toast.info(`Uploading podcast with ${storageType} storage...`);
       
       const result = await uploadPodcast(
         formData, 
@@ -137,8 +158,8 @@ const PodcastUpload = () => {
         </h3>
         <RadioGroup 
           defaultValue={storageType} 
-          onValueChange={(value) => handleStorageChange(value as 'supabase' | 'neon' | 'local')}
-          className="flex space-x-4"
+          onValueChange={(value) => handleStorageChange(value as StorageType)}
+          className="flex flex-wrap gap-4"
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="supabase" id="supabase" />
@@ -152,9 +173,25 @@ const PodcastUpload = () => {
             <RadioGroupItem value="local" id="local" />
             <Label htmlFor="local">Local Storage</Label>
           </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="s3" id="s3" />
+            <Label htmlFor="s3">AWS S3</Label>
+            {storageType === 's3' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-blue-600"
+                onClick={() => setIsS3ConfigModalOpen(true)}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </RadioGroup>
         <p className="text-xs text-blue-600 mt-1">
-          Files will be stored using browser storage when Supabase is unavailable. This setting controls where metadata is stored.
+          {storageType === 's3' 
+            ? 'Files will be stored in AWS S3. Metadata will be stored in local storage.' 
+            : 'Files will be stored using browser storage when Supabase is unavailable. This setting controls where metadata is stored.'}
         </p>
       </div>
       
@@ -319,6 +356,11 @@ const PodcastUpload = () => {
           {isUploading ? 'Uploading...' : 'Upload Podcast'}
         </Button>
       </div>
+      
+      <S3ConfigModal 
+        isOpen={isS3ConfigModalOpen} 
+        onClose={() => setIsS3ConfigModalOpen(false)} 
+      />
     </div>
   );
 };

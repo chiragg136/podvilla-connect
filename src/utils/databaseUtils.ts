@@ -8,7 +8,7 @@ import { toast } from "sonner";
  */
 
 interface StorageConfig {
-  filesStorage: 'supabase'; // Currently only supporting Supabase for files
+  filesStorage: 'supabase' | 's3'; // Now supporting AWS S3 for files
   metadataStorage: 'supabase' | 'neon' | 'local'; // Support both Supabase, Neon and local for metadata
 }
 

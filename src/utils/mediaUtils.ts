@@ -1,4 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
+import { isS3PresignedUrl, refreshS3Url } from "./awsS3Utils";
 
 /**
  * Utility functions for media handling
@@ -13,6 +15,12 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
   if (!url) return '';
   
   console.log('Processing audio URL:', url);
+  
+  // For AWS S3 presigned URLs
+  if (isS3PresignedUrl(url)) {
+    console.log('Using AWS S3 presigned URL:', url);
+    return url;
+  }
   
   // For Supabase storage URLs, check if it needs any adjustments
   if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/')) {
@@ -58,6 +66,11 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
  */
 export const getDisplayableImageUrl = (url: string | undefined): string => {
   if (!url) return '/placeholder.svg';
+  
+  // For AWS S3 presigned URLs
+  if (isS3PresignedUrl(url)) {
+    return url;
+  }
   
   // For Supabase storage URLs, return as is
   if (url.includes('supabase.co') && url.includes('/storage/v1/object/public/')) {
@@ -178,10 +191,19 @@ export const getCurrentUserId = async (): Promise<string | null> => {
 
 /**
  * Verify if an audio URL is playable by trying to load it
+ * First attempts to refresh S3 URLs if applicable
  * @param url URL of the audio file to test
  * @returns Promise that resolves with a boolean indicating if the audio is playable
  */
 export const isAudioPlayable = async (url: string): Promise<boolean> => {
+  // Try to refresh S3 URL if needed
+  if (isS3PresignedUrl(url)) {
+    const refreshedUrl = await refreshS3Url(url);
+    if (refreshedUrl) {
+      url = refreshedUrl;
+    }
+  }
+  
   return new Promise((resolve) => {
     const audio = new Audio();
     let timeoutId: number;
