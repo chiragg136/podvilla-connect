@@ -28,8 +28,6 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <UserProvider>
-          <Toaster />
-          <Sonner />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -43,6 +41,8 @@ const App = () => {
               <Route path="/podcast/:id" element={<PodcastDetails />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <Toaster />
+            <Sonner />
           </BrowserRouter>
         </UserProvider>
       </TooltipProvider>

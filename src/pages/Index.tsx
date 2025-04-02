@@ -1,62 +1,67 @@
 
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { clearStoredMedia } from '@/utils/awsS3Utils';
 import Header from '@/components/Header';
 import HeroSection from '@/components/HeroSection';
 import FeaturesSection from '@/components/FeaturesSection';
 import TrendingSection from '@/components/TrendingSection';
-import Player from '@/components/Player';
 import AppFooter from '@/components/AppFooter';
-import { podcastService } from '@/services/podcastService';
+import { PodcastService } from '@/services/podcastService';
 
-const Index = () => {
+export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPodcast, setCurrentPodcast] = useState<string | null>(null);
 
+  // Initialize data and fetch podcasts
   useEffect(() => {
-    // Initialize podcast data and simulate loading
     const initializeData = async () => {
       try {
-        // Preload some podcast data
-        await podcastService.getAllPodcasts();
+        await PodcastService.getAllPodcasts();
       } catch (error) {
-        console.error('Error initializing data:', error);
+        console.error('Error fetching podcasts from Supabase:', error);
       } finally {
-        // Simulate loading time
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 500);
+        setIsLoading(false);
       }
     };
-    
+
     initializeData();
   }, []);
 
-  const handlePlayPodcast = (podcastId: string) => {
-    setCurrentPodcast(podcastId);
+  const handleClearMedia = () => {
+    const confirmed = window.confirm('Are you sure you want to clear all stored media? This will remove all cached audio and may help resolve playback issues.');
+    if (confirmed) {
+      if (clearStoredMedia()) {
+        toast.success('All stored media has been cleared');
+        // Reload the page to apply changes
+        window.location.reload();
+      }
+    }
   };
 
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-white">
-        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent-purple to-accent-pink animate-pulse-slow"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex flex-col min-h-screen">
       <Header />
       
       <main className="flex-grow">
-        <HeroSection onPlay={handlePlayPodcast} />
+        <HeroSection />
+        <div className="container mx-auto px-4 py-8">
+          <Button 
+            variant="destructive" 
+            size="sm"
+            className="mb-8 flex items-center gap-2"
+            onClick={handleClearMedia}
+          >
+            <Trash2 className="h-4 w-4" />
+            Clear All Stored Media
+          </Button>
+        </div>
         <FeaturesSection />
-        <TrendingSection onPlayPodcast={handlePlayPodcast} />
+        <TrendingSection isLoading={isLoading} />
       </main>
       
       <AppFooter />
-      <Player podcastId={currentPodcast} isPlaying={currentPodcast !== null} />
     </div>
   );
-};
-
-export default Index;
+}

@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { getPlayableAudioUrl, getDisplayableImageUrl, isAudioPlayable } from '@/utils/mediaUtils';
+import { clearStoredMedia } from '@/utils/awsS3Utils';
 
 interface PlayerProps {
   isVisible?: boolean;
@@ -181,11 +182,11 @@ const Player = ({
       if (isPlaying) {
         audioRef.current.play().catch(error => {
           console.error('Failed to play audio:', error);
+          setIsPlaying(false);
           toast({
             title: "Playback Error",
             description: "Could not play this audio. The file may not be accessible.",
           });
-          setIsPlaying(false);
         });
       }
     }
@@ -239,11 +240,29 @@ const Player = ({
     }
   }, [episodeId]);
 
+  const handleTryClearMedia = () => {
+    const confirmed = window.confirm('Would you like to clear all stored media? This might help if you are experiencing playback issues.');
+    if (confirmed) {
+      if (clearStoredMedia()) {
+        toast({
+          title: "Media Cleared",
+          description: "All stored media has been cleared. This may resolve playback issues.",
+        });
+        window.location.reload();
+      }
+    }
+  };
+
   const togglePlay = () => {
     if (audioLoadError) {
       toast({
         title: "Cannot Play",
         description: "This audio file cannot be played. Please check the file or try another podcast.",
+        action: (
+          <Button variant="outline" size="sm" onClick={handleTryClearMedia}>
+            Clear Stored Media
+          </Button>
+        )
       });
       return;
     }
@@ -453,6 +472,17 @@ const Player = ({
             </Button>
           </div>
         </div>
+        {audioLoadError && (
+          <div className="flex items-center justify-center mt-1 pb-1 text-xs text-destructive">
+            <span>Playback error. </span>
+            <button 
+              onClick={handleTryClearMedia}
+              className="ml-2 text-xs underline hover:text-primary"
+            >
+              Clear stored media
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
