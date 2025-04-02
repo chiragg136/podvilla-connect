@@ -116,8 +116,8 @@ export const uploadPodcast = async (
     const useS3 = storageConfig.filesStorage === 's3';
     
     // Upload cover image and audio file
-    let coverUrl: { publicUrl: string };
-    let audioUrl: { publicUrl: string };
+    let coverUrl: string;
+    let audioUrl: string;
     
     // Upload cover image
     console.log("Uploading cover image:", coverFileName);
@@ -141,7 +141,7 @@ export const uploadPodcast = async (
         };
       }
       
-      coverUrl = { publicUrl: coverS3Url };
+      coverUrl = coverS3Url;
       
       // Upload audio to S3
       const audioS3Url = await uploadFileToS3(
@@ -159,7 +159,7 @@ export const uploadPodcast = async (
         };
       }
       
-      audioUrl = { publicUrl: audioS3Url };
+      audioUrl = audioS3Url;
     } else {
       console.log("Using Supabase Storage for file storage");
       
@@ -175,9 +175,7 @@ export const uploadPodcast = async (
         if (coverError) {
           console.error("Cover image upload error:", coverError);
           // Create a fallback URL
-          coverUrl = {
-            publicUrl: URL.createObjectURL(coverImageFile)
-          };
+          const coverObjectUrl = URL.createObjectURL(coverImageFile);
           
           // Save cover image to local storage as a data URL for persistence
           const reader = new FileReader();
@@ -185,36 +183,39 @@ export const uploadPodcast = async (
             try {
               // Store mapping of generated URL to data URL
               const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
-              urlMappings[coverUrl.publicUrl] = reader.result;
+              urlMappings[coverObjectUrl] = reader.result;
               localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
             } catch (e) {
               console.error("Error storing cover image data URL:", e);
             }
           };
           reader.readAsDataURL(coverImageFile);
+          
+          coverUrl = coverObjectUrl;
         } else {
           // Get public URL for the uploaded cover image
-          coverUrl = supabase.storage.from('covers').getPublicUrl(coverFileName);
+          const { data } = supabase.storage.from('covers').getPublicUrl(coverFileName);
+          coverUrl = data.publicUrl;
         }
       } catch (error) {
         console.error("Unexpected error uploading cover:", error);
         // Create a fallback URL
-        coverUrl = {
-          publicUrl: URL.createObjectURL(coverImageFile)
-        };
+        const coverObjectUrl = URL.createObjectURL(coverImageFile);
         
         // Save to local storage as above
         const reader = new FileReader();
         reader.onload = () => {
           try {
             const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
-            urlMappings[coverUrl.publicUrl] = reader.result;
+            urlMappings[coverObjectUrl] = reader.result;
             localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
           } catch (e) {
             console.error("Error storing cover image data URL:", e);
           }
         };
         reader.readAsDataURL(coverImageFile);
+        
+        coverUrl = coverObjectUrl;
       }
       
       if (onProgress) onProgress(40);
@@ -233,9 +234,7 @@ export const uploadPodcast = async (
         if (audioError) {
           console.error("Audio file upload error:", audioError);
           // Create a fallback URL
-          audioUrl = {
-            publicUrl: URL.createObjectURL(audioFile)
-          };
+          const audioObjectUrl = URL.createObjectURL(audioFile);
           
           // Save audio to local storage as a data URL for persistence
           const reader = new FileReader();
@@ -243,43 +242,46 @@ export const uploadPodcast = async (
             try {
               // Store mapping of generated URL to data URL
               const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
-              urlMappings[audioUrl.publicUrl] = reader.result;
+              urlMappings[audioObjectUrl] = reader.result;
               localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
             } catch (e) {
               console.error("Error storing audio data URL:", e);
             }
           };
           reader.readAsDataURL(audioFile);
+          
+          audioUrl = audioObjectUrl;
         } else {
           // Get public URL for the uploaded audio file
-          audioUrl = supabase.storage.from('podcasts').getPublicUrl(audioFileName);
+          const { data } = supabase.storage.from('podcasts').getPublicUrl(audioFileName);
+          audioUrl = data.publicUrl;
         }
       } catch (error) {
         console.error("Unexpected error uploading audio:", error);
         // Create a fallback URL
-        audioUrl = {
-          publicUrl: URL.createObjectURL(audioFile)
-        };
+        const audioObjectUrl = URL.createObjectURL(audioFile);
         
         // Save to local storage as above
         const reader = new FileReader();
         reader.onload = () => {
           try {
             const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
-            urlMappings[audioUrl.publicUrl] = reader.result;
+            urlMappings[audioObjectUrl] = reader.result;
             localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
           } catch (e) {
             console.error("Error storing audio data URL:", e);
           }
         };
         reader.readAsDataURL(audioFile);
+        
+        audioUrl = audioObjectUrl;
       }
     }
     
     if (onProgress) onProgress(80);
     
-    console.log("Cover URL:", coverUrl?.publicUrl);
-    console.log("Audio URL:", audioUrl?.publicUrl);
+    console.log("Cover URL:", coverUrl);
+    console.log("Audio URL:", audioUrl);
     
     // Save podcast metadata using appropriate storage method
     const podcastResult = await savePodcastMetadata({
@@ -287,7 +289,7 @@ export const uploadPodcast = async (
       title,
       description,
       category,
-      cover_url: coverUrl.publicUrl,
+      cover_url: coverUrl,
       user_id: userId
     });
     
@@ -307,7 +309,7 @@ export const uploadPodcast = async (
       podcast_id: podcastId,
       title: episodeTitle,
       description: episodeDescription,
-      audio_url: audioUrl.publicUrl,
+      audio_url: audioUrl,
       duration: 0 // Will be updated later when the audio is loaded
     });
     
@@ -330,13 +332,13 @@ export const uploadPodcast = async (
         title,
         description,
         category,
-        coverImage: coverUrl.publicUrl,
+        coverImage: coverUrl,
         creator: 'You',
         episodes: [{
           id: episodeId,
           title: episodeTitle,
           description: episodeDescription,
-          audioUrl: audioUrl.publicUrl,
+          audioUrl: audioUrl,
           duration: 0,
           releaseDate: new Date().toISOString()
         }]
