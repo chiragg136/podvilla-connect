@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
@@ -23,16 +23,25 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [processedUrl, setProcessedUrl] = useState('');
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [isPlayable, setIsPlayable] = useState(true);
+  const [dataUrlMode, setDataUrlMode] = useState(false);
 
   useEffect(() => {
     // Reset load attempts when URL changes
     setLoadAttempts(0);
     setIsLoading(true);
     setIsPlayable(true);
+    setDataUrlMode(false);
     
     // Process the URL to make it playable
-    const playableUrl = getPlayableAudioUrl(audioUrl);
+    let playableUrl = getPlayableAudioUrl(audioUrl);
     setProcessedUrl(playableUrl);
+    
+    // Check if it's a data URL (for localStorage-based files)
+    if (playableUrl.startsWith('data:') || playableUrl.startsWith('blob:')) {
+      setDataUrlMode(true);
+      console.log('AudioPlayer: Using data URL mode');
+    }
+    
     console.log('AudioPlayer: Using processed URL', playableUrl);
     
     // Check if the audio is playable
@@ -78,11 +87,26 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     audio.addEventListener('error', (e) => {
       console.error('Audio error:', e);
       setIsLoading(false);
-      setIsPlayable(false);
       
       // Try again with a different URL format if we haven't tried too many times
       if (loadAttempts < 3) {
         setLoadAttempts(prev => prev + 1);
+        
+        // Try to get the data URL from localStorage if it exists
+        try {
+          const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+          if (urlMappings[playableUrl]) {
+            console.log('Trying cached data URL from localStorage');
+            playableUrl = urlMappings[playableUrl];
+            setProcessedUrl(playableUrl);
+            setDataUrlMode(true);
+            audio.src = playableUrl;
+            audio.load();
+            return;
+          }
+        } catch (e) {
+          console.error('Error retrieving cached URL:', e);
+        }
         
         let alternativeUrl = playableUrl;
         
@@ -108,11 +132,13 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         }
         
         console.log(`Retrying with alternative URL (attempt ${loadAttempts}):`, alternativeUrl);
+        setProcessedUrl(alternativeUrl);
         audio.src = alternativeUrl;
         audio.load();
         return;
       }
       
+      setIsPlayable(false);
       toast.error('Unable to play this audio file. Please check that the file exists and is in a supported format.');
     });
     
@@ -176,6 +202,36 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     }
   };
 
+  const retryWithDataUrl = () => {
+    if (!audioUrl) return;
+    
+    setIsLoading(true);
+    
+    // Try to get the data URL from localStorage
+    try {
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      if (urlMappings[audioUrl]) {
+        console.log('Found cached data URL, switching to it');
+        const dataUrl = urlMappings[audioUrl];
+        setProcessedUrl(dataUrl);
+        setDataUrlMode(true);
+        
+        if (audioRef.current) {
+          audioRef.current.src = dataUrl;
+          audioRef.current.load();
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.error('Error retrieving cached URL:', e);
+    }
+    
+    toast.info('No cached version of this audio found');
+    setIsLoading(false);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -185,6 +241,19 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   return (
     <div className="bg-white rounded-lg p-4 shadow-md">
       <div className="flex flex-col space-y-3">
+        {!isPlayable && !dataUrlMode && (
+          <div className="mb-2 flex justify-end">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-xs flex items-center gap-1"
+              onClick={retryWithDataUrl}
+            >
+              <RefreshCcw className="h-3 w-3" /> Try cached version
+            </Button>
+          </div>
+        )}
+        
         <div className="flex items-center justify-center space-x-4">
           <Button
             size="icon"

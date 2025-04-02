@@ -218,3 +218,36 @@ export const refreshS3Url = async (url: string): Promise<string | null> => {
     return url;
   }
 };
+
+/**
+ * Clear all stored media from simulated storage
+ */
+export const clearStoredMedia = (): boolean => {
+  try {
+    // Clear all URL mappings
+    localStorage.removeItem('urlMappings');
+    localStorage.removeItem('s3KeyMappings');
+    
+    // Clear podcast data
+    localStorage.removeItem('podcasts');
+    
+    // Clear other related storage data
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('podcast_') || key.startsWith('episode_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    toast.success('All stored media has been cleared');
+    console.log('Cleared all stored media from simulated storage');
+    return true;
+  } catch (error) {
+    console.error('Error clearing stored media:', error);
+    toast.error('Failed to clear stored media');
+    return false;
+  }
+};

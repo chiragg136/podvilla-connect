@@ -1,7 +1,7 @@
 
 import { useState, ChangeEvent, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Upload, File, X, Database, Settings } from 'lucide-react';
+import { Upload, File, X, Database, Settings, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,8 +11,19 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { podcastService } from '@/services/podcastService';
 import { useUser } from '@/contexts/UserContext';
 import { uploadPodcast, setStoragePreference, getStoragePreference, StorageType } from '@/api/podcastStorageManager';
-import { areAwsCredentialsConfigured } from '@/utils/awsS3Utils';
+import { areAwsCredentialsConfigured, clearStoredMedia } from '@/utils/awsS3Utils';
 import S3ConfigModal from './S3ConfigModal';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const PodcastUpload = () => {
   const { user } = useUser();
@@ -88,6 +99,21 @@ const PodcastUpload = () => {
     setCoverImagePreview(null);
   };
 
+  const handleClearAllMedia = () => {
+    const success = clearStoredMedia();
+    if (success) {
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setCategory('Technology');
+      setSelectedAudioFile(null);
+      setSelectedCoverImage(null);
+      setCoverImagePreview(null);
+      setEpisodeTitle('');
+      setEpisodeDescription('');
+    }
+  };
+
   const handleUpload = async () => {
     if (!title || !description || !category || !selectedAudioFile || !selectedCoverImage || !episodeTitle) {
       toast.error('Please fill in all fields and upload both audio and cover image');
@@ -149,7 +175,33 @@ const PodcastUpload = () => {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold text-primary-900">Upload New Podcast</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-primary-900">Upload New Podcast</h2>
+        
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" className="flex items-center gap-1">
+              <Trash2 className="h-4 w-4" />
+              Clear Stored Media
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove all previously uploaded podcasts and media files from storage.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearAllMedia}>
+                Yes, clear everything
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
       
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
         <h3 className="flex items-center text-sm font-medium text-blue-800 mb-2">

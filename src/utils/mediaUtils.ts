@@ -16,9 +16,25 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
   
   console.log('Processing audio URL:', url);
   
+  // Check if the URL is a data URL from localStorage
+  if (url.startsWith('data:audio/') || url.startsWith('blob:')) {
+    console.log('Using data/blob URL for audio');
+    return url;
+  }
+  
   // For AWS S3 presigned URLs
   if (isS3PresignedUrl(url)) {
     console.log('Using AWS S3 presigned URL:', url);
+    try {
+      // Try to get the actual data URL from localStorage
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      if (urlMappings[url]) {
+        console.log('Found cached data URL for S3 URL');
+        return urlMappings[url];
+      }
+    } catch (e) {
+      console.error('Error retrieving cached data URL:', e);
+    }
     return url;
   }
   
@@ -42,17 +58,22 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
     }
   }
   
-  // Handle data URLs (for local testing/development)
-  if (url.startsWith('data:audio/')) {
-    console.log('Using data URL for audio');
-    return url;
-  }
-  
   // For relative URLs, ensure they have the correct base path
   if (url.startsWith('/')) {
     const basePath = window.location.origin;
     console.log('Converting relative URL to absolute:', `${basePath}${url}`);
     return `${basePath}${url}`;
+  }
+  
+  // Check if there's a cached version in localStorage
+  try {
+    const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+    if (urlMappings[url]) {
+      console.log('Found cached data URL');
+      return urlMappings[url];
+    }
+  } catch (e) {
+    console.error('Error retrieving cached URL:', e);
   }
   
   console.log('Using original URL:', url);
@@ -67,8 +88,22 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
 export const getDisplayableImageUrl = (url: string | undefined): string => {
   if (!url) return '/placeholder.svg';
   
+  // Check if the URL is a data URL from localStorage
+  if (url.startsWith('data:image/') || url.startsWith('blob:')) {
+    return url;
+  }
+  
   // For AWS S3 presigned URLs
   if (isS3PresignedUrl(url)) {
+    try {
+      // Try to get the actual data URL from localStorage
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      if (urlMappings[url]) {
+        return urlMappings[url];
+      }
+    } catch (e) {
+      console.error('Error retrieving cached image URL:', e);
+    }
     return url;
   }
   
@@ -90,15 +125,20 @@ export const getDisplayableImageUrl = (url: string | undefined): string => {
     }
   }
   
-  // Handle data URLs
-  if (url.startsWith('data:image/')) {
-    return url;
-  }
-  
   // For relative URLs, ensure they have the correct base path
   if (url.startsWith('/')) {
     const basePath = window.location.origin;
     return `${basePath}${url}`;
+  }
+  
+  // Check if there's a cached version in localStorage
+  try {
+    const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+    if (urlMappings[url]) {
+      return urlMappings[url];
+    }
+  } catch (e) {
+    console.error('Error retrieving cached image URL:', e);
   }
   
   return url;
@@ -197,10 +237,22 @@ export const getCurrentUserId = async (): Promise<string | null> => {
  */
 export const isAudioPlayable = async (url: string): Promise<boolean> => {
   // Try to refresh S3 URL if needed
+  let processedUrl = url;
   if (isS3PresignedUrl(url)) {
     const refreshedUrl = await refreshS3Url(url);
     if (refreshedUrl) {
-      url = refreshedUrl;
+      processedUrl = refreshedUrl;
+    }
+    
+    // Also check if we have a cached data URL
+    try {
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      if (urlMappings[processedUrl]) {
+        processedUrl = urlMappings[processedUrl];
+        console.log('Using cached data URL for playback test');
+      }
+    } catch (e) {
+      console.error('Error retrieving cached URL for playback test:', e);
     }
   }
   
@@ -217,7 +269,7 @@ export const isAudioPlayable = async (url: string): Promise<boolean> => {
     };
     
     const onSuccess = () => {
-      console.log('Audio is playable:', url);
+      console.log('Audio is playable:', processedUrl);
       cleanup();
       resolve(true);
     };
@@ -225,11 +277,30 @@ export const isAudioPlayable = async (url: string): Promise<boolean> => {
     const onError = (e: ErrorEvent) => {
       console.error('Audio playback error:', e);
       cleanup();
+      
+      // For S3 URLs, let's try the original URL directly
+      if (isS3PresignedUrl(url) && processedUrl !== url) {
+        console.log('Trying original URL as fallback');
+        const fallbackAudio = new Audio();
+        fallbackAudio.oncanplaythrough = () => {
+          console.log('Fallback audio is playable');
+          fallbackAudio.src = '';
+          resolve(true);
+        };
+        fallbackAudio.onerror = () => {
+          console.error('Fallback audio playback error');
+          fallbackAudio.src = '';
+          resolve(false);
+        };
+        fallbackAudio.src = url;
+        return;
+      }
+      
       resolve(false);
     };
     
     timeoutId = window.setTimeout(() => {
-      console.warn('Audio load timeout:', url);
+      console.warn('Audio load timeout:', processedUrl);
       cleanup();
       resolve(false);
     }, 8000);
@@ -238,9 +309,8 @@ export const isAudioPlayable = async (url: string): Promise<boolean> => {
     audio.addEventListener('error', onError);
     
     // Process the URL first to ensure it's in a playable format
-    const processedUrl = getPlayableAudioUrl(url);
     console.log('Testing audio playability:', processedUrl);
-    audio.src = processedUrl;
+    audio.src = getPlayableAudioUrl(processedUrl);
     audio.load();
   });
 };
