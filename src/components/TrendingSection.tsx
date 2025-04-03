@@ -7,7 +7,7 @@ import PodcastCard from '@/components/PodcastCard';
 import { podcastService, Podcast } from '@/services/podcastService';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface TrendingSectionProps {
+export interface TrendingSectionProps {
   onPlayPodcast: (id: string) => void;
 }
 

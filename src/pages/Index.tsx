@@ -9,7 +9,7 @@ import HeroSection from '@/components/HeroSection';
 import FeaturesSection from '@/components/FeaturesSection';
 import TrendingSection from '@/components/TrendingSection';
 import AppFooter from '@/components/AppFooter';
-import { PodcastService } from '@/services/podcastService';
+import { podcastService } from '@/services/podcastService';
 
 export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
@@ -18,7 +18,7 @@ export default function Index() {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        await PodcastService.getAllPodcasts();
+        await podcastService.getAllPodcasts();
       } catch (error) {
         console.error('Error fetching podcasts from Supabase:', error);
       } finally {
@@ -40,6 +40,12 @@ export default function Index() {
     }
   };
 
+  // Placeholder function for playing podcasts (needed by TrendingSection)
+  const handlePlayPodcast = (id: string) => {
+    console.log(`Playing podcast with ID: ${id}`);
+    // Actual implementation would likely navigate to the podcast page or start playback
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -58,7 +64,7 @@ export default function Index() {
           </Button>
         </div>
         <FeaturesSection />
-        <TrendingSection isLoading={isLoading} />
+        <TrendingSection onPlayPodcast={handlePlayPodcast} />
       </main>
       
       <AppFooter />

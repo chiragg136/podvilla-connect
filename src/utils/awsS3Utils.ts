@@ -2,6 +2,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// AWS S3 credentials type
+interface AwsCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
 /**
  * Check if a URL is an AWS S3 presigned URL
  * @param url URL to check
@@ -51,6 +57,69 @@ export const refreshS3Url = async (url: string): Promise<string> => {
 };
 
 /**
+ * Store AWS credentials in local storage
+ * @param credentials AWS credentials
+ */
+export const setAwsCredentials = (credentials: AwsCredentials): void => {
+  localStorage.setItem('awsCredentials', JSON.stringify(credentials));
+};
+
+/**
+ * Get AWS credentials from local storage
+ * @returns AWS credentials or null if not found
+ */
+export const getAwsCredentials = (): AwsCredentials | null => {
+  const credentials = localStorage.getItem('awsCredentials');
+  return credentials ? JSON.parse(credentials) : null;
+};
+
+/**
+ * Check if AWS S3 credentials are configured
+ * @returns Boolean indicating if credentials are configured
+ */
+export const areAwsCredentialsConfigured = (): boolean => {
+  const credentials = getAwsCredentials();
+  return !!credentials && !!credentials.accessKeyId && !!credentials.secretAccessKey;
+};
+
+/**
+ * Upload a file to AWS S3
+ * @param file File to upload
+ * @param key S3 key (path)
+ * @param onProgress Progress callback
+ * @returns URL of the uploaded file if successful, otherwise null
+ */
+export const uploadFileToS3 = async (
+  file: File, 
+  key: string,
+  onProgress?: (progress: number) => void
+): Promise<string | null> => {
+  // Mock implementation since we're not actually connecting to S3
+  try {
+    // Simulate upload progress
+    if (onProgress) {
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        onProgress(Math.min(progress, 99));
+        if (progress >= 100) {
+          clearInterval(interval);
+        }
+      }, 300);
+    }
+    
+    // Wait for "upload" to complete
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Return a fake S3 URL
+    return `https://mock-s3-bucket.s3.amazonaws.com/${key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=FAKE&X-Amz-Date=20230615T000000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=fake`;
+  } catch (error) {
+    console.error('Error uploading to S3:', error);
+    return null;
+  }
+};
+
+/**
  * Clear all stored media from local storage
  * This function clears:
  * 1. URL mappings (cached media data URLs)
@@ -66,6 +135,7 @@ export const clearStoredMedia = (): boolean => {
     
     // Clear local podcasts data
     localStorage.removeItem('localPodcasts');
+    localStorage.removeItem('podcasts');
     
     // Clear local episodes data
     localStorage.removeItem('localEpisodes');
