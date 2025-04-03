@@ -147,11 +147,71 @@ export const clearStoredMedia = (): boolean => {
     localStorage.removeItem('lastPlayedMedia');
     localStorage.removeItem('playbackPositions');
     
+    // Clear IndexedDB audio storage if available
+    try {
+      indexedDB.deleteDatabase('audioCache');
+    } catch (e) {
+      console.error('Failed to clear IndexedDB cache:', e);
+    }
+    
     console.log('Successfully cleared all stored media');
     return true;
   } catch (error) {
     console.error('Error clearing stored media:', error);
     toast.error('Failed to clear stored media');
+    return false;
+  }
+};
+
+/**
+ * Delete a specific podcast from local storage
+ * @param podcastId ID of the podcast to delete
+ * @returns Boolean indicating success
+ */
+export const deletePodcast = (podcastId: string): boolean => {
+  try {
+    // Get existing podcasts from localStorage
+    const existingPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+    
+    // Find the podcast to delete to get its files
+    const podcastToDelete = existingPodcasts.find((p: any) => p.id === podcastId);
+    
+    if (!podcastToDelete) {
+      console.warn('Podcast not found:', podcastId);
+      return false;
+    }
+    
+    // Clean up related media from URL mappings
+    try {
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      
+      // Clean up cover image
+      if (podcastToDelete.coverImage && urlMappings[podcastToDelete.coverImage]) {
+        delete urlMappings[podcastToDelete.coverImage];
+      }
+      
+      // Clean up audio files from episodes
+      if (podcastToDelete.episodes) {
+        podcastToDelete.episodes.forEach((episode: any) => {
+          if (episode.audioUrl && urlMappings[episode.audioUrl]) {
+            delete urlMappings[episode.audioUrl];
+          }
+        });
+      }
+      
+      localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+    } catch (e) {
+      console.error('Error cleaning up URL mappings:', e);
+    }
+    
+    // Remove the podcast from the list
+    const updatedPodcasts = existingPodcasts.filter((p: any) => p.id !== podcastId);
+    localStorage.setItem('podcasts', JSON.stringify(updatedPodcasts));
+    
+    console.log('Successfully deleted podcast:', podcastId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting podcast:', error);
     return false;
   }
 };

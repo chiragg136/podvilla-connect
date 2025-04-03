@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Play, Pause, Bookmark, Share, Download, Clock, Calendar, MessageSquare, Users } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Bookmark, Share, Download, Clock, Calendar, MessageSquare, Users, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,9 +18,22 @@ import EpisodeComments from '@/components/EpisodeComments';
 import PodcastRoom from '@/components/PodcastRoom';
 import { getPlayableAudioUrl, getDisplayableImageUrl, getGoogleDriveDownloadLink } from '@/utils/mediaUtils';
 import { getPodcastMetadata } from '@/utils/googleDriveStorage';
+import { deletePodcastWithFiles, deleteEpisode } from '@/utils/fileDeleteUtils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const PodcastDetails = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [podcast, setPodcast] = useState<Podcast | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
@@ -29,13 +43,58 @@ const PodcastDetails = () => {
   const { isAuthenticated } = useUser();
   const [activeTab, setActiveTab] = useState('episodes');
   const [currentAudioUrl, setCurrentAudioUrl] = useState<string | undefined>(undefined);
+  const [isUserOwned, setIsUserOwned] = useState(false);
+  const [deleteEpisodeId, setDeleteEpisodeId] = useState<string | null>(null);
+  const [deletePodcastDialogOpen, setDeletePodcastDialogOpen] = useState(false);
 
   useEffect(() => {
-    const fetchPodcastDetails = async () => {
-      if (!id) return;
+    fetchPodcastDetails();
+  }, [id, isAuthenticated]);
+
+  const fetchPodcastDetails = async () => {
+    if (!id) return;
+    
+    setIsLoading(true);
+    try {
+      // First check if it's a user-uploaded podcast in localStorage
+      const userPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+      const userPodcast = userPodcasts.find((p: any) => p.id === id);
       
-      setIsLoading(true);
-      try {
+      if (userPodcast) {
+        console.log("Found user-uploaded podcast:", userPodcast);
+        setIsUserOwned(true);
+        
+        const coverImageUrl = getDisplayableImageUrl(userPodcast.coverImage);
+        
+        const formattedPodcast: Podcast = {
+          id: userPodcast.id,
+          title: userPodcast.title,
+          description: userPodcast.description,
+          creator: userPodcast.creator || 'You',
+          coverImage: coverImageUrl,
+          categories: [userPodcast.category],
+          totalEpisodes: userPodcast.episodes?.length || 0
+        };
+        
+        setPodcast(formattedPodcast);
+        
+        if (userPodcast.episodes && userPodcast.episodes.length > 0) {
+          const formattedEpisodes = userPodcast.episodes.map((ep: any) => ({
+            id: ep.id,
+            podcastId: userPodcast.id,
+            title: ep.title,
+            description: ep.description,
+            audioUrl: getPlayableAudioUrl(ep.audioUrl),
+            audioFileId: ep.audioFileId,
+            duration: ep.duration ? parseInt(ep.duration) : 300,
+            releaseDate: ep.createdAt || new Date().toISOString(),
+            isExclusive: false
+          }));
+          
+          setEpisodes(formattedEpisodes);
+        }
+      } else {
+        // Check Google Drive storage
         const googleDrivePodcasts = await getPodcastMetadata();
         const googleDrivePodcast = googleDrivePodcasts.find((p: any) => p.id === id);
         
@@ -72,6 +131,7 @@ const PodcastDetails = () => {
             setEpisodes(formattedEpisodes);
           }
         } else {
+          // Finally, check Supabase
           const podcastData = await podcastService.getPodcastById(id);
           
           if (podcastData) {
@@ -99,16 +159,14 @@ const PodcastDetails = () => {
             toast.error('Podcast not found');
           }
         }
-      } catch (error) {
-        console.error('Error fetching podcast details:', error);
-        toast.error('Failed to load podcast details');
-      } finally {
-        setIsLoading(false);
       }
-    };
-    
-    fetchPodcastDetails();
-  }, [id, isAuthenticated]);
+    } catch (error) {
+      console.error('Error fetching podcast details:', error);
+      toast.error('Failed to load podcast details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const toggleFavorite = async () => {
     if (!id) return;
@@ -201,6 +259,36 @@ const PodcastDetails = () => {
       month: 'long', 
       day: 'numeric' 
     }).format(date);
+  };
+
+  const handleDeleteEpisode = async (episodeId: string) => {
+    if (!id) return;
+    
+    setDeleteEpisodeId(null);
+    const success = await deleteEpisode(id, episodeId);
+    
+    if (success) {
+      // Stop playback if this was the currently playing episode
+      if (currentEpisode && currentEpisode.id === episodeId) {
+        setCurrentEpisode(null);
+        setIsPlaying(false);
+      }
+      
+      // Refresh podcast details
+      fetchPodcastDetails();
+    }
+  };
+
+  const handleDeletePodcast = async () => {
+    if (!id) return;
+    
+    setDeletePodcastDialogOpen(false);
+    const success = await deletePodcastWithFiles(id);
+    
+    if (success) {
+      toast.success('Podcast deleted successfully');
+      navigate('/discover');
+    }
   };
 
   if (isLoading) {
@@ -304,6 +392,30 @@ const PodcastDetails = () => {
                 <Bookmark className={`mr-2 h-4 w-4 ${isFavorite ? "fill-accent-purple text-accent-purple" : ""}`} />
                 {isFavorite ? 'Saved' : 'Save'}
               </Button>
+              
+              {isUserOwned && (
+                <AlertDialog open={deletePodcastDialogOpen} onOpenChange={setDeletePodcastDialogOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Podcast
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. It will permanently delete this podcast
+                        and all its episodes from your library.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeletePodcast}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
             
             <div className="flex items-center text-sm text-primary-500">
@@ -381,6 +493,32 @@ const PodcastDetails = () => {
                         >
                           <Share className="h-4 w-4" />
                         </Button>
+                        
+                        {isUserOwned && (
+                          <AlertDialog open={deleteEpisodeId === episode.id} onOpenChange={(open) => !open && setDeleteEpisodeId(null)}>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => setDeleteEpisodeId(episode.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete episode?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. It will permanently delete this episode and its audio file.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteEpisode(episode.id)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </div>
                   </CardContent>

@@ -1,18 +1,27 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, RefreshCcw } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, RefreshCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
 import { getPlayableAudioUrl, isAudioPlayable } from '@/utils/mediaUtils';
+import { clearStoredMedia } from '@/utils/awsS3Utils';
 
 interface AudioPlayerProps {
   audioUrl: string;
   onEnded?: () => void;
   autoPlay?: boolean;
+  onDelete?: () => void;
+  showDeleteButton?: boolean;
 }
 
-const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) => {
+const AudioPlayer = ({ 
+  audioUrl, 
+  onEnded, 
+  autoPlay = false, 
+  onDelete,
+  showDeleteButton = false 
+}: AudioPlayerProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -24,6 +33,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [isPlayable, setIsPlayable] = useState(true);
   const [dataUrlMode, setDataUrlMode] = useState(false);
+  const [isLocalFile, setIsLocalFile] = useState(false);
 
   useEffect(() => {
     // Reset load attempts when URL changes
@@ -31,27 +41,41 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     setIsLoading(true);
     setIsPlayable(true);
     setDataUrlMode(false);
+    setIsLocalFile(false);
     
-    // Process the URL to make it playable
-    let playableUrl = getPlayableAudioUrl(audioUrl);
-    setProcessedUrl(playableUrl);
-    
-    // Check if it's a data URL (for localStorage-based files)
-    if (playableUrl.startsWith('data:') || playableUrl.startsWith('blob:')) {
+    // First, check if this is a data URL from localStorage
+    if (audioUrl.startsWith('data:') || audioUrl.startsWith('blob:')) {
+      console.log('AudioPlayer: Direct data URL detected');
+      setProcessedUrl(audioUrl);
       setDataUrlMode(true);
-      console.log('AudioPlayer: Using data URL mode');
+      setIsLocalFile(true);
+    } else {
+      // Process the URL to make it playable
+      const playableUrl = getPlayableAudioUrl(audioUrl);
+      setProcessedUrl(playableUrl);
+      
+      // Check if it's a data URL (from URL mapping in localStorage)
+      if (playableUrl.startsWith('data:') || playableUrl.startsWith('blob:')) {
+        setDataUrlMode(true);
+        setIsLocalFile(true);
+        console.log('AudioPlayer: Using mapped data URL mode');
+      }
+      
+      console.log('AudioPlayer: Using processed URL', playableUrl);
     }
     
-    console.log('AudioPlayer: Using processed URL', playableUrl);
-    
-    // Check if the audio is playable
-    isAudioPlayable(playableUrl).then(playable => {
-      setIsPlayable(playable);
-      if (!playable) {
-        setIsLoading(false);
-        toast.error('This audio file cannot be played. It may be in an unsupported format or inaccessible.');
+    // Check if there's a directly cached version in localStorage
+    try {
+      const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+      if (urlMappings[audioUrl]) {
+        console.log('Found direct cached data URL');
+        setProcessedUrl(urlMappings[audioUrl]);
+        setDataUrlMode(true);
+        setIsLocalFile(true);
       }
-    });
+    } catch (e) {
+      console.error('Error checking URL mappings:', e);
+    }
     
     // Create new audio element to avoid stale references
     if (audioRef.current) {
@@ -61,6 +85,18 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     
     const audio = new Audio();
     audioRef.current = audio;
+    
+    // For local files, we don't need to check playability
+    if (!isLocalFile) {
+      // Check if the audio is playable
+      isAudioPlayable(processedUrl || audioUrl).then(playable => {
+        setIsPlayable(playable);
+        if (!playable) {
+          setIsLoading(false);
+          toast.error('This audio file cannot be played. It may be in an unsupported format or inaccessible.');
+        }
+      });
+    }
     
     audio.addEventListener('loadedmetadata', () => {
       console.log("AudioPlayer: Audio metadata loaded", { duration: audio.duration });
@@ -95,12 +131,13 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         // Try to get the data URL from localStorage if it exists
         try {
           const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
-          if (urlMappings[playableUrl]) {
+          if (urlMappings[audioUrl]) {
             console.log('Trying cached data URL from localStorage');
-            playableUrl = urlMappings[playableUrl];
-            setProcessedUrl(playableUrl);
+            const cachedUrl = urlMappings[audioUrl];
+            setProcessedUrl(cachedUrl);
             setDataUrlMode(true);
-            audio.src = playableUrl;
+            setIsLocalFile(true);
+            audio.src = cachedUrl;
             audio.load();
             return;
           }
@@ -108,10 +145,14 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
           console.error('Error retrieving cached URL:', e);
         }
         
-        let alternativeUrl = playableUrl;
+        if (loadAttempts === 0) {
+          toast.info('Trying alternative playback method...');
+        }
+        
+        let alternativeUrl = processedUrl || audioUrl;
         
         // If it's a Supabase URL, try direct access
-        if (playableUrl.includes('supabase.co')) {
+        if (alternativeUrl.includes('supabase.co')) {
           // No alternative needed, just retry
           console.log('Retrying Supabase URL');
         }
@@ -139,13 +180,31 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
       }
       
       setIsPlayable(false);
-      toast.error('Unable to play this audio file. Please check that the file exists and is in a supported format.');
+      toast.error(
+        'Unable to play this audio file. You may need to clear cached data or try a different file format.',
+        {
+          action: {
+            label: 'Clear Media Cache',
+            onClick: () => {
+              if (clearStoredMedia()) {
+                toast.success('Media cache cleared. Please reload the page.');
+                setTimeout(() => window.location.reload(), 1500);
+              }
+            }
+          }
+        }
+      );
     });
     
     // Set initial volume
     audio.volume = volume / 100;
-    audio.src = playableUrl;
-    audio.load();
+    
+    // Set the source and load
+    if (processedUrl) {
+      console.log("Setting audio source to processed URL:", processedUrl);
+      audio.src = processedUrl;
+      audio.load();
+    }
     
     return () => {
       if (audioRef.current) {
@@ -153,7 +212,22 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         audioRef.current.src = '';
       }
     };
-  }, [audioUrl, autoPlay, onEnded, loadAttempts]);
+  }, [audioUrl, autoPlay, onEnded, loadAttempts, isLocalFile]);
+
+  useEffect(() => {
+    if (audioRef.current && processedUrl) {
+      audioRef.current.src = processedUrl;
+      audioRef.current.load();
+      setIsLoading(false);
+      
+      if (isPlaying) {
+        audioRef.current.play().catch(error => {
+          console.error('Play prevented:', error);
+          setIsPlaying(false);
+        });
+      }
+    }
+  }, [processedUrl, isPlaying]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -176,7 +250,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   }, [volume, isMuted]);
 
   const togglePlay = () => {
-    if (!isPlayable) {
+    if (!isPlayable && !isLocalFile) {
       toast.error('This audio file cannot be played.');
       return;
     }
@@ -215,6 +289,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
         const dataUrl = urlMappings[audioUrl];
         setProcessedUrl(dataUrl);
         setDataUrlMode(true);
+        setIsLocalFile(true);
         
         if (audioRef.current) {
           audioRef.current.src = dataUrl;
@@ -232,6 +307,19 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
     setIsLoading(false);
   };
 
+  const handleDelete = () => {
+    if (onDelete) {
+      // Stop playback
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+      
+      // Call the onDelete handler
+      onDelete();
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -241,7 +329,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
   return (
     <div className="bg-white rounded-lg p-4 shadow-md">
       <div className="flex flex-col space-y-3">
-        {!isPlayable && !dataUrlMode && (
+        {(!isPlayable && !dataUrlMode) && (
           <div className="mb-2 flex justify-end">
             <Button 
               variant="outline" 
@@ -264,7 +352,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
                 audioRef.current.currentTime = Math.max(0, currentTime - 15);
               }
             }}
-            disabled={!isPlayable}
+            disabled={!isPlayable && !isLocalFile}
           >
             <SkipBack className="h-5 w-5" />
           </Button>
@@ -272,7 +360,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
           <Button
             onClick={togglePlay}
             size="icon"
-            disabled={isLoading || !isPlayable}
+            disabled={isLoading || (!isPlayable && !isLocalFile)}
             className="bg-primary-900 hover:bg-primary-800 text-white rounded-full h-10 w-10 flex items-center justify-center"
           >
             {isLoading ? (
@@ -293,7 +381,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
                 audioRef.current.currentTime = Math.min(duration, currentTime + 15);
               }
             }}
-            disabled={!isPlayable}
+            disabled={!isPlayable && !isLocalFile}
           >
             <SkipForward className="h-5 w-5" />
           </Button>
@@ -309,7 +397,7 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
             max={duration || 100}
             step={0.01}
             onValueChange={handleSeek}
-            disabled={isLoading || !isPlayable}
+            disabled={isLoading || (!isPlayable && !isLocalFile)}
             className="flex-1"
           />
           <span className="text-xs text-primary-500 w-8">
@@ -317,29 +405,42 @@ const AudioPlayer = ({ audioUrl, onEnded, autoPlay = false }: AudioPlayerProps) 
           </span>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <Button
-            onClick={toggleMute}
-            size="icon"
-            variant="ghost"
-            className="text-primary-600 hover:text-primary-900"
-            disabled={!isPlayable}
-          >
-            {isMuted ? (
-              <VolumeX className="h-4 w-4" />
-            ) : (
-              <Volume1 className="h-4 w-4" />
-            )}
-          </Button>
-          <Slider
-            value={[isMuted ? 0 : volume]}
-            min={0}
-            max={100}
-            step={1}
-            onValueChange={handleVolumeChange}
-            className="w-24"
-            disabled={!isPlayable}
-          />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={toggleMute}
+              size="icon"
+              variant="ghost"
+              className="text-primary-600 hover:text-primary-900"
+              disabled={!isPlayable && !isLocalFile}
+            >
+              {isMuted ? (
+                <VolumeX className="h-4 w-4" />
+              ) : (
+                <Volume1 className="h-4 w-4" />
+              )}
+            </Button>
+            <Slider
+              value={[isMuted ? 0 : volume]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={handleVolumeChange}
+              className="w-24"
+              disabled={!isPlayable && !isLocalFile}
+            />
+          </div>
+          
+          {showDeleteButton && onDelete && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              className="flex items-center gap-1"
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+          )}
         </div>
       </div>
     </div>
