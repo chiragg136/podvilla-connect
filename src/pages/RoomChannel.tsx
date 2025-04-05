@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -5,6 +6,7 @@ import { useUser } from '@/contexts/UserContext';
 import Header from '@/components/Header';
 import AppFooter from '@/components/AppFooter';
 import Player from '@/components/Player';
+import VideoChat from '@/components/VideoChat';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -23,9 +25,12 @@ import {
   VideoOff,
   Volume,
   VolumeX,
-  MessageSquare
+  MessageSquare,
+  Phone,
+  PhoneCall
 } from 'lucide-react';
 import roomService, { Room, Message } from '@/services/roomService';
+import { supabase } from '@/integrations/supabase/client';
 
 const RoomChannel = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -39,6 +44,9 @@ const RoomChannel = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
+  const [callParticipants, setCallParticipants] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const refreshInterval = useRef<number | null>(null);
 
@@ -74,6 +82,10 @@ const RoomChannel = () => {
           if (roomData.videoEnabled?.includes(user?.id || '')) {
             setVideoEnabled(true);
           }
+          
+          // Load room participants
+          const participants = await roomService.getRoomParticipants(roomId);
+          setCallParticipants(participants);
         } else {
           toast.error('Room not found');
           navigate('/rooms');
@@ -88,20 +100,49 @@ const RoomChannel = () => {
     
     fetchRoom();
     
-    refreshInterval.current = window.setInterval(async () => {
-      if (roomId && activeChannel) {
-        try {
-          const updatedMessages = await roomService.getMessages(roomId, activeChannel);
-          setMessages(updatedMessages);
-        } catch (error) {
-          console.error('Error refreshing messages:', error);
+    // Set up Supabase real-time subscription for messages
+    const messageChannel = supabase
+      .channel(`room-messages-${roomId}`)
+      .on('broadcast', { event: 'new-message' }, payload => {
+        if (payload.payload.channelName === activeChannel) {
+          setMessages(prev => [...prev, payload.payload.message]);
         }
-      }
-    }, 5000) as unknown as number;
+      })
+      .subscribe();
+    
+    // Set up Supabase real-time subscription for call status
+    const callStatusChannel = supabase
+      .channel(`room-call-${roomId}`)
+      .on('broadcast', { event: 'call-status' }, payload => {
+        if (payload.payload.type === 'start' && !isCallActive) {
+          toast.info(`${payload.payload.initiator} started a ${payload.payload.callType} call`, {
+            action: {
+              label: "Join",
+              onClick: () => {
+                setCallType(payload.payload.callType);
+                setIsCallActive(true);
+              }
+            }
+          });
+        } else if (payload.payload.type === 'end' && isCallActive) {
+          toast.info('Call has ended');
+          setIsCallActive(false);
+        }
+      })
+      .subscribe();
     
     return () => {
       if (refreshInterval.current) {
         clearInterval(refreshInterval.current);
+      }
+      
+      // Clean up Supabase subscriptions
+      supabase.channel(`room-messages-${roomId}`).unsubscribe();
+      supabase.channel(`room-call-${roomId}`).unsubscribe();
+      
+      // Leave room when component unmounts
+      if (roomId && user) {
+        roomService.leaveRoom(roomId, user.id);
       }
     };
   }, [roomId, isAuthenticated, navigate, user, activeChannel]);
@@ -114,15 +155,22 @@ const RoomChannel = () => {
     if (!messageText.trim() || !room || !user) return;
     
     try {
-      await roomService.sendMessage(roomId || '', activeChannel, {
+      const newMessage = await roomService.sendMessage(roomId || '', activeChannel, {
         userId: user.id,
         userName: user.name || 'Anonymous User',
         userAvatar: user.profileImage || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61',
         content: messageText.trim()
       });
       
-      const updatedMessages = await roomService.getMessages(roomId || '', activeChannel);
-      setMessages(updatedMessages);
+      // Broadcast the new message via Supabase
+      await supabase.channel(`room-messages-${roomId}`).send({
+        type: 'broadcast',
+        event: 'new-message',
+        payload: {
+          channelName: activeChannel,
+          message: newMessage
+        }
+      });
       
       setMessageText('');
     } catch (error) {
@@ -172,6 +220,54 @@ const RoomChannel = () => {
       toast.success(newState ? 'Camera enabled' : 'Camera disabled');
     } else {
       toast.error('Failed to toggle video');
+    }
+  };
+
+  const startCall = async (type: 'audio' | 'video') => {
+    if (!roomId || !user) return;
+    
+    try {
+      setCallType(type);
+      setIsCallActive(true);
+      
+      // Broadcast call start via Supabase
+      await supabase.channel(`room-call-${roomId}`).send({
+        type: 'broadcast',
+        event: 'call-status',
+        payload: {
+          type: 'start',
+          callType: type,
+          roomId,
+          initiator: user.name || 'Someone'
+        }
+      });
+      
+      toast.success(`${type === 'audio' ? 'Voice' : 'Video'} call started`);
+    } catch (error) {
+      console.error('Error starting call:', error);
+      toast.error('Failed to start call');
+      setIsCallActive(false);
+    }
+  };
+  
+  const endCall = async () => {
+    if (!roomId) return;
+    
+    try {
+      setIsCallActive(false);
+      
+      // Broadcast call end via Supabase
+      await supabase.channel(`room-call-${roomId}`).send({
+        type: 'broadcast',
+        event: 'call-status',
+        payload: {
+          type: 'end',
+          roomId
+        }
+      });
+    } catch (error) {
+      console.error('Error ending call:', error);
+      toast.error('Failed to end call');
     }
   };
 
@@ -232,11 +328,45 @@ const RoomChannel = () => {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="text-sm text-gray-500 hidden md:flex items-center">
                 <Users className="h-4 w-4 mr-1" />
                 <span>{room?.memberCount || 0} members</span>
               </div>
+              
+              {/* Call buttons */}
+              {!isCallActive ? (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-1"
+                    onClick={() => startCall('audio')}
+                  >
+                    <Phone className="h-4 w-4" />
+                    <span className="hidden md:inline">Voice Call</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => startCall('video')}
+                  >
+                    <Video className="h-4 w-4" />
+                    <span className="hidden md:inline">Video Call</span>
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={endCall}
+                >
+                  End Call
+                </Button>
+              )}
+              
               <Button variant="ghost" size="sm">
                 <Settings className="h-4 w-4" />
               </Button>
@@ -389,6 +519,16 @@ const RoomChannel = () => {
           </div>
         </div>
       </main>
+      
+      {isCallActive && (
+        <VideoChat 
+          roomId={roomId || ''}
+          isActive={isCallActive}
+          isVideo={callType === 'video'}
+          onClose={endCall}
+          participants={callParticipants}
+        />
+      )}
       
       <AppFooter />
       <Player podcastId={null} />

@@ -1,5 +1,5 @@
 
-project_id = "ffnjrliexdowbhtyhyrp"
+project_id = "idpwghsuiaucwxjdzaqv"
 
 [storage]
 [storage.buckets]
@@ -10,3 +10,7 @@ allow_public_urls = true
 [storage.buckets.podcasts]
 public = true
 allow_public_urls = true
+
+[storage.buckets.call_records]
+public = false
+allow_public_urls = false
