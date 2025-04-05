@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume1, VolumeX, Heart, ListMusic, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -118,6 +119,34 @@ const Player = ({
       console.error('Player: Audio error', e);
       setIsPlaying(false);
       setAudioLoadError(true);
+      
+      // Try to get a cached version if available
+      if (propAudioUrl) {
+        try {
+          const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+          if (urlMappings[propAudioUrl]) {
+            console.log('Found cached audio, trying to play that instead');
+            setProcessedAudioUrl(urlMappings[propAudioUrl]);
+            setAudioLoadError(false);
+            return;
+          }
+          
+          // Check if it's a local file
+          if (propAudioUrl.startsWith('localfile:')) {
+            const fileKey = propAudioUrl.replace('localfile:', '');
+            const audioData = localStorage.getItem(`audio_${fileKey}`);
+            if (audioData) {
+              console.log('Found local audio data, trying to play that');
+              setProcessedAudioUrl(audioData);
+              setAudioLoadError(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Error retrieving cached URL:', e);
+        }
+      }
+      
       toast({
         title: "Playback Error",
         description: "Unable to play this audio. The file may be unavailable or in an unsupported format.",
@@ -159,17 +188,31 @@ const Player = ({
     if (audioSource) {
       const playableUrl = getPlayableAudioUrl(audioSource);
       console.log("Player: Processing audio URL", { original: audioSource, processed: playableUrl });
+      
+      // If we got an empty string back from getPlayableAudioUrl, it means it's a local file that wasn't found
+      if (playableUrl === '' && audioSource.startsWith('localfile:')) {
+        setAudioLoadError(true);
+        toast({
+          title: "File Not Found",
+          description: "The audio file could not be found in local storage.",
+        });
+        return;
+      }
+      
       setProcessedAudioUrl(playableUrl);
       
-      isAudioPlayable(playableUrl).then(playable => {
-        if (!playable) {
-          setAudioLoadError(true);
-          toast({
-            title: "Playback Warning",
-            description: "This audio file might not play correctly. Please check the file format.",
-          });
-        }
-      });
+      // Don't run playability check for data URLs as it's redundant
+      if (!playableUrl.startsWith('data:') && !playableUrl.startsWith('blob:')) {
+        isAudioPlayable(playableUrl).then(playable => {
+          if (!playable) {
+            setAudioLoadError(true);
+            toast({
+              title: "Playback Warning",
+              description: "This audio file might not play correctly. Please check the file format.",
+            });
+          }
+        });
+      }
     }
   }, [audioSource, toast]);
 

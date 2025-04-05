@@ -1,6 +1,7 @@
 
 import { toast } from 'sonner';
 import { deletePodcast } from './awsS3Utils';
+import { removeLocalAudioFile } from './mediaUtils';
 
 /**
  * Delete a podcast and all its related files
@@ -9,17 +10,53 @@ import { deletePodcast } from './awsS3Utils';
  */
 export const deletePodcastWithFiles = async (podcastId: string): Promise<boolean> => {
   try {
-    // First try to delete from local storage
-    const success = deletePodcast(podcastId);
+    // Get existing podcasts from localStorage
+    const existingPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+    const podcastIndex = existingPodcasts.findIndex((p: any) => p.id === podcastId);
     
-    if (success) {
-      toast.success('Podcast deleted successfully');
-      return true;
-    } else {
-      // If local deletion fails, there might be an error
-      toast.error('Failed to delete podcast');
+    if (podcastIndex === -1) {
+      console.warn('Podcast not found:', podcastId);
+      toast.error('Podcast not found');
       return false;
     }
+    
+    const podcast = existingPodcasts[podcastIndex];
+    
+    // Delete all episodes and their audio files
+    if (podcast.episodes && Array.isArray(podcast.episodes)) {
+      for (const episode of podcast.episodes) {
+        if (episode.audioUrl) {
+          // Clean up audio file from localStorage if it's a local file
+          removeLocalAudioFile(episode.audioUrl);
+          
+          // Clean up URL mappings
+          try {
+            const urlMappings = JSON.parse(localStorage.getItem('urlMappings') || '{}');
+            if (urlMappings[episode.audioUrl]) {
+              delete urlMappings[episode.audioUrl];
+              localStorage.setItem('urlMappings', JSON.stringify(urlMappings));
+            }
+          } catch (e) {
+            console.error('Error cleaning up URL mappings:', e);
+          }
+        }
+      }
+    }
+    
+    // Remove podcast from localStorage
+    existingPodcasts.splice(podcastIndex, 1);
+    localStorage.setItem('podcasts', JSON.stringify(existingPodcasts));
+    
+    // Also try AWS S3 deletion if applicable
+    try {
+      deletePodcast(podcastId);
+    } catch (e) {
+      console.error('Error with AWS S3 deletion:', e);
+      // Continue anyway since we've already deleted from localStorage
+    }
+    
+    toast.success('Podcast deleted successfully');
+    return true;
   } catch (error) {
     console.error('Error deleting podcast:', error);
     toast.error('An error occurred while deleting the podcast');
@@ -62,6 +99,11 @@ export const deleteEpisode = async (podcastId: string, episodeId: string): Promi
     }
     
     const episode = podcast.episodes[episodeIndex];
+    
+    // Clean up the audio file if it's a local file
+    if (episode.audioUrl) {
+      removeLocalAudioFile(episode.audioUrl);
+    }
     
     // Clean up audio URL from URL mappings
     try {

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { isS3PresignedUrl, refreshS3Url } from "./awsS3Utils";
 
@@ -20,6 +19,25 @@ export const getPlayableAudioUrl = (url: string | undefined): string => {
   if (url.startsWith('data:audio/') || url.startsWith('blob:')) {
     console.log('Using data/blob URL for audio');
     return url;
+  }
+  
+  // Handle local file URLs that start with "localfile:"
+  if (url.startsWith('localfile:')) {
+    try {
+      // Try to get the actual data URL from localStorage
+      const fileKey = url.replace('localfile:', '');
+      const audioData = localStorage.getItem(`audio_${fileKey}`);
+      if (audioData) {
+        console.log('Found local audio data');
+        return audioData;
+      } else {
+        console.warn('Local audio data not found for key:', fileKey);
+        return '';
+      }
+    } catch (e) {
+      console.error('Error retrieving local audio:', e);
+      return '';
+    }
   }
   
   // For AWS S3 presigned URLs
@@ -313,4 +331,59 @@ export const isAudioPlayable = async (url: string): Promise<boolean> => {
     audio.src = getPlayableAudioUrl(processedUrl);
     audio.load();
   });
+};
+
+/**
+ * Store audio file in local storage
+ * @param file Audio file to store
+ * @returns Promise resolving to a URL reference to retrieve the audio
+ */
+export const storeAudioFileLocally = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const fileId = Date.now().toString();
+    
+    reader.onload = (event) => {
+      if (event.target && event.target.result) {
+        // Store the file data in localStorage
+        try {
+          localStorage.setItem(`audio_${fileId}`, event.target.result as string);
+          console.log('Audio file stored locally with ID:', fileId);
+          resolve(`localfile:${fileId}`);
+        } catch (e) {
+          console.error('Error storing audio in localStorage:', e);
+          reject(e);
+        }
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    
+    reader.onerror = (error) => {
+      console.error('Error reading file:', error);
+      reject(error);
+    };
+    
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Remove locally stored audio file
+ * @param audioUrl URL reference to the audio file
+ * @returns Boolean indicating success
+ */
+export const removeLocalAudioFile = (audioUrl: string): boolean => {
+  if (audioUrl.startsWith('localfile:')) {
+    try {
+      const fileKey = audioUrl.replace('localfile:', '');
+      localStorage.removeItem(`audio_${fileKey}`);
+      console.log('Removed local audio file:', fileKey);
+      return true;
+    } catch (e) {
+      console.error('Error removing local audio file:', e);
+      return false;
+    }
+  }
+  return false;
 };

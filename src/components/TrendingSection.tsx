@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Trash2 } from 'lucide-react';
@@ -8,6 +7,7 @@ import { podcastService, Podcast } from '@/services/podcastService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { clearStoredMedia } from '@/utils/awsS3Utils';
+import { deletePodcastWithFiles } from '@/utils/fileDeleteUtils';
 
 export interface TrendingSectionProps {
   onPlayPodcast: (id: string) => void;
@@ -25,27 +25,23 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
   const fetchPodcasts = async () => {
     setIsLoading(true);
     try {
-      // Get all podcasts
       const allPodcasts = await podcastService.getAllPodcasts();
       
-      // Check if we have user-uploaded podcasts in localStorage
       const userPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
       
       if (userPodcasts.length > 0) {
-        // If user has uploaded podcasts, show those first
         const formattedUserPodcasts = userPodcasts.map((podcast: any) => ({
           id: podcast.id,
           title: podcast.title,
           creator: podcast.creator || 'You',
           coverImage: podcast.coverImage,
-          coverImageCid: podcast.coverImageCid, // Add for IPFS
-          ipfsCid: podcast.ipfsCid, // Add for IPFS
+          coverImageCid: podcast.coverImageCid,
+          ipfsCid: podcast.ipfsCid,
           description: podcast.description,
           categories: [podcast.category],
           totalEpisodes: podcast.episodes?.length || 0
         }));
         
-        // Combine user podcasts with mock podcasts but prioritize user podcasts
         const combinedPodcasts = [
           ...formattedUserPodcasts.slice(0, 2),
           ...allPodcasts.filter(p => !formattedUserPodcasts.some((up: any) => up.id === p.id))
@@ -53,12 +49,10 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
         
         setPodcasts(combinedPodcasts);
       } else {
-        // If no user podcasts, just show the first 4 mock podcasts
         setPodcasts(allPodcasts.slice(0, 4));
       }
     } catch (error) {
       console.error('Error fetching trending podcasts:', error);
-      // Fallback to empty array if error
       setPodcasts([]);
     } finally {
       setIsLoading(false);
@@ -69,24 +63,16 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
     navigate('/discover');
   };
   
-  const handleDeletePodcast = (id: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent triggering the card click
+  const handleDeletePodcast = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     
     if (window.confirm('Are you sure you want to delete this podcast? This action cannot be undone.')) {
       try {
-        // Get existing podcasts from localStorage
-        const existingPodcasts = JSON.parse(localStorage.getItem('podcasts') || '[]');
+        const success = await deletePodcastWithFiles(id);
         
-        // Filter out the podcast to delete
-        const updatedPodcasts = existingPodcasts.filter((p: any) => p.id !== id);
-        
-        // Save back to localStorage
-        localStorage.setItem('podcasts', JSON.stringify(updatedPodcasts));
-        
-        // Update the UI
-        fetchPodcasts();
-        
-        toast.success('Podcast deleted successfully');
+        if (success) {
+          fetchPodcasts();
+        }
       } catch (error) {
         console.error('Error deleting podcast:', error);
         toast.error('Failed to delete podcast');
@@ -134,7 +120,6 @@ const TrendingSection = ({ onPlayPodcast }: TrendingSectionProps) => {
                     onPlay={() => onPlayPodcast(podcast.id)}
                   />
                   
-                  {/* Delete button - only show for user-uploaded podcasts */}
                   {podcast.creator === 'You' && (
                     <Button
                       variant="destructive"
